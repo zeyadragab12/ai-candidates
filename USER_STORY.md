@@ -30,62 +30,64 @@ This document outlines the user personas, core epics, and detailed user stories 
 
 ## 2. Epics & User Stories
 
-### Epic 1: Intelligent Job Specification & AI Ingestion
+### Epic 1: Intelligent Job Specification & Streamlined Ingestion
 
-#### Story 1.1: Upload or Paste Job Description
+#### Story 1.1: Collapsible Job Details & Company Specification
 > **As Sarah (Recruiter)**,
-> **I want to** paste or upload a job description in PDF, DOCX, or plain text format,
-> **So that** I don't have to manually re-type role details.
+> **I want to** specify the role title, company name, employment type, and work arrangement in an expandable/collapsible list,
+> **So that** I can configure the company parameters cleanly and collapse them once done.
 
 - **Acceptance Criteria**:
-  - System supports drag-and-drop or file selection for PDF, DOCX, and TXT files.
-  - Direct paste text area is available with auto-resizing.
-  - Corrupt or unsupported files display a friendly error message.
-- **Alert / Feedback**:
-  - **Success Toast**: `Extracted job spec from [filename]` upon successful text parsing.
-  - **Error Toast**: Clear notification if the file format is invalid or extraction fails.
+  - Job Details accordion includes: Job Title, Company Name, Employment Type, and Work Arrangement.
+  - Can be expanded and collapsed at any time with real-time summary indicators.
+  - Collapses automatically when "Analyze Job" is clicked.
 
-#### Story 1.2: AI Job Analysis & Requirement Customization
+#### Story 1.2: Redesigned File Dropzone & Job Description Input
 > **As Sarah (Recruiter)**,
-> **I want** the AI to analyze the job description into structured requirements and allow me to edit them,
-> **So that** I can tailor the exact search parameters before sourcing.
+> **I want to** upload a PDF/DOCX or paste text in an intuitive, responsive upload area,
+> **So that** I can provide role specs effortlessly.
 
 - **Acceptance Criteria**:
-  - AI extracts: Job Title, Seniority, Location, Employment Type, Required Skills, Preferred Skills, Years of Experience, Education, and Keywords.
-  - Output is strictly validated by Zod.
-  - Recruiter can add, delete, or modify any skill or requirement badge.
+  - Drag-and-drop file dropzone supporting PDF, DOCX, and TXT files.
+  - Interactive file chip displaying file name, size, and one-click remove/replace options.
+  - Collapsible accordion with character counts and text preview.
 - **Alert / Feedback**:
-  - **Progress Toast**: `Analyzing job description with AI...`
-  - **Success Toast**: `Requirements successfully extracted from job spec!`
+  - **Success Toast**: `Extracted content from [filename]` upon parsing.
+
+#### Story 1.3: Animated Analysis Load Screen & Clean Requirements Display
+> **As Sarah (Recruiter)**,
+> **I want** the input forms to collapse and display a sleek loading animation during analysis, followed by an un-cluttered requirements view,
+> **So that** I don't feel overwhelmed by massive walls of empty inputs.
+
+- **Acceptance Criteria**:
+  - Clicking "Analyze Job" collapses both accordions and triggers an animated AI loading card.
+  - Extracted requirements are displayed in an elegant tabbed layout (Skills & Technologies, Education & Qualifications, Responsibilities & Keywords).
+  - Clean tag pills with one-click removal and inline addition.
 
 ---
 
-### Epic 2: Autonomous Sourcing & Search Query Generation
+### Epic 2: Automated Sourcing & Sourcing Completion Alert
 
-#### Story 2.1: Automated Query Optimization
+#### Story 2.1: One-Click Autonomous Sourcing (No Manual Query Clutter)
 > **As Sarah (Recruiter)**,
-> **I want** the system to generate multiple targeted search queries from the extracted job requirements,
-> **So that** I reach a diverse and relevant candidate pool.
+> **I want to** click a single button to generate queries and find candidates automatically without reviewing raw search query syntax,
+> **So that** the entire sourcing process happens seamlessly in the background.
 
 - **Acceptance Criteria**:
-  - System generates 2–4 concise queries combining title, top skills, seniority, and location.
-  - Recruiter can edit, add, or delete any generated query.
-- **Alert / Feedback**:
-  - **Success Toast**: `[X] search queries generated!`
+  - No raw search query form is displayed.
+  - System automatically generates targeted queries, saves the role, queries authorized providers, and scores candidate matches.
+  - Real-time step status banner displayed during the background run.
 
-#### Story 2.2: Authorized Search Run Execution
+#### Story 2.2: Centered Sourcing Completion Modal with Action Buttons
 > **As Sarah (Recruiter)**,
-> **I want to** execute the search run using authorized search providers without waiting on a frozen screen,
-> **So that** candidates are gathered in the background while I continue my work.
+> **I want** a prominent centered alert to appear upon search completion displaying the number of candidates found and giving me immediate actions,
+> **So that** I know exactly how many candidates were found and can jump straight to reviewing them.
 
 - **Acceptance Criteria**:
-  - Search runs query public, authorized APIs (or deterministic mock data in dev mode).
-  - Candidates are deterministically normalized and deduplicated without inventing information.
-  - Progress can be polled via status endpoints (`pending` -> `running` -> `complete`).
-- **Alert / Feedback**:
-  - **Start Toast**: `Saving job and launching candidate search...`
-  - **Complete Toast**: `Found [X] candidates! AI scoring completed.`
-  - **Error Toast**: Friendly notification if provider limits or network errors occur.
+  - Centered modal with backdrop blur.
+  - Displays: "Candidate Sourcing Complete!", the role title, company, and the exact count of candidates found.
+  - **Button 1 ("Close")**: Dismisses the modal.
+  - **Button 2 ("Show Candidates")**: Directly navigates to `/candidates?jobId=[jobId]`.
 
 ---
 

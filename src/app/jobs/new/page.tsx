@@ -1,10 +1,26 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Briefcase,
+  Building2,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  FileText,
+  Loader2,
+  Plus,
+  Search,
+  Sparkles,
+  UploadCloud,
+  Users,
+  X,
+  ArrowRight,
+} from "lucide-react";
 
 import { DashboardNav } from "@/components/dashboard/nav";
 import { RequirementsEditor } from "@/components/jobs/RequirementsEditor";
-import { SearchQueries } from "@/components/jobs/SearchQueries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,6 +29,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  CardDescription,
 } from "@/components/ui/card";
 import {
   Select,
@@ -21,8 +38,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toast";
 import type { JobAnalysis } from "@/types/job-analysis";
+import { cn } from "@/lib/utils";
 
 type InputMode = "paste" | "upload";
 
@@ -30,28 +49,38 @@ const EMPLOYMENT_TYPES = ["Full-time", "Part-time", "Contract", "Internship"];
 const WORK_ARRANGEMENTS = ["Remote", "Hybrid", "On-site"];
 
 export default function NewJobPage() {
+  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [mode, setMode] = useState<InputMode>("paste");
+
+  // Accordion state
+  const [isJobDetailsOpen, setIsJobDetailsOpen] = useState(true);
+  const [isJdOpen, setIsJdOpen] = useState(true);
+
+  // Form state
   const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [location, setLocation] = useState("");
+  const [company, setCompany] = useState("");
   const [employmentType, setEmploymentType] = useState("");
   const [workArrangement, setWorkArrangement] = useState("");
-  const [uploadedFileName, setUploadedFileName] = useState<string | null>(
-    null,
-  );
+
+  // Job description & file upload state
+  const [mode, setMode] = useState<InputMode>("upload");
+  const [description, setDescription] = useState("");
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const [uploadedFileSize, setUploadedFileSize] = useState<string | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  // AI Analysis state
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<JobAnalysis | null>(null);
-  const [isGeneratingQueries, setIsGeneratingQueries] = useState(false);
-  const [generateQueriesError, setGenerateQueriesError] = useState<
-    string | null
-  >(null);
-  const [searchQueries, setSearchQueries] = useState<string[]>([]);
+
+  // Automatic Sourcing state
   const [isSearching, setIsSearching] = useState(false);
+  const [searchStep, setSearchStep] = useState<"idle" | "generating" | "sourcing" | "scoring">("idle");
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [savedJobId, setSavedJobId] = useState<string | null>(null);
   const [searchRun, setSearchRun] = useState<{
     id: string;
     status: string;
@@ -61,175 +90,22 @@ export default function NewJobPage() {
     credits_used: number | null;
   } | null>(null);
 
-  async function pollSearchRunStatus(runId: string) {
-    const POLL_INTERVAL_MS = 1500;
-    const MAX_ATTEMPTS = 40; // ~60s ceiling so a stuck run doesn't poll forever
+  // Success Modal state
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [candidatesFoundCount, setCandidatesFoundCount] = useState(0);
 
-    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-      const res = await fetch(`/api/search/${runId}/status`);
-      const run = await res.json();
-
-      if (!res.ok) {
-        const msg = run.error ?? "Failed to check search status.";
-        setSearchError(msg);
-        toast.error(msg, "Search Error");
-        return;
-      }
-
-      setSearchRun(run);
-
-      if (run.status === "complete" || run.status === "error") {
-        if (run.status === "error" && run.error) {
-          setSearchError(run.error);
-          toast.error(run.error, "Sourcing Failed");
-        } else if (run.status === "complete") {
-          toast.success(
-            `Found ${run.candidates_found ?? 0} candidates! AI scoring completed.`,
-            "Sourcing Succeeded"
-          );
-        }
-        return;
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-    }
-
-    setSearchError("Search is taking longer than expected. Check back shortly.");
-    toast.warning("Search is taking longer than expected. Check back shortly.");
+  // File formatting helper
+  function formatFileSize(bytes: number): string {
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / 1048576).toFixed(1) + " MB";
   }
 
-  async function handleFindCandidates() {
-    if (!analysis) return;
-
-    setSearchError(null);
-    setIsSearching(true);
-    setSearchRun(null);
-    toast.info("Saving job and launching candidate search...", "Starting Sourcing");
-
-    try {
-      const jobResponse = await fetch("/api/jobs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: title || analysis.job_title,
-          description,
-          location: location || analysis.location,
-          employment_type: employmentType || analysis.employment_type,
-          work_arrangement: workArrangement,
-          seniority: analysis.seniority,
-          required_skills: analysis.required_skills,
-          preferred_skills: analysis.preferred_skills,
-          minimum_experience: analysis.years_of_experience.minimum,
-          maximum_experience: analysis.years_of_experience.maximum,
-          education: analysis.education,
-          certifications: analysis.certifications,
-          languages: analysis.languages,
-          keywords: analysis.keywords,
-          ai_analysis: analysis,
-        }),
-      });
-      const job = await jobResponse.json();
-
-      if (!jobResponse.ok) {
-        const msg = job.error ?? "Failed to save the job.";
-        setSearchError(msg);
-        toast.error(msg);
-        return;
-      }
-
-      const searchResponse = await fetch(`/api/jobs/${job.id}/search`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ queries: searchQueries }),
-      });
-      const run = await searchResponse.json();
-
-      if (!searchResponse.ok) {
-        const msg = run.error ?? "Failed to run the candidate search.";
-        setSearchError(msg);
-        toast.error(msg);
-        return;
-      }
-
-      setSearchRun(run);
-      await pollSearchRunStatus(run.id);
-    } catch {
-      setSearchError("Failed to run the candidate search.");
-      toast.error("Failed to run the candidate search.");
-    } finally {
-      setIsSearching(false);
-    }
-  }
-
-  async function handleGenerateQueries() {
-    if (!analysis) return;
-
-    setGenerateQueriesError(null);
-    setIsGeneratingQueries(true);
-    toast.info("Generating optimized search queries with AI...", "Working");
-
-    try {
-      const response = await fetch("/api/jobs/generate-queries", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(analysis),
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        const msg = data.error ?? "Failed to generate search queries.";
-        setGenerateQueriesError(msg);
-        toast.error(msg);
-        return;
-      }
-
-      setSearchQueries(data.search_queries);
-      toast.success(`${data.search_queries.length} search queries generated!`, "Queries Ready");
-    } catch {
-      setGenerateQueriesError("Failed to generate search queries.");
-      toast.error("Failed to generate search queries.");
-    } finally {
-      setIsGeneratingQueries(false);
-    }
-  }
-
-  async function handleAnalyze() {
-    setAnalyzeError(null);
-    setIsAnalyzing(true);
-    toast.info("Analyzing job description with AI...", "Processing JD");
-
-    try {
-      const response = await fetch("/api/jobs/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobDescriptionText: description }),
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        const msg = data.error ?? "Failed to analyze the job description.";
-        setAnalyzeError(msg);
-        toast.error(msg);
-        return;
-      }
-
-      setAnalysis(data);
-      toast.success("Requirements successfully extracted from job spec!", "Analysis Complete");
-    } catch {
-      setAnalyzeError("Failed to analyze the job description.");
-      toast.error("Failed to analyze the job description.");
-    } finally {
-      setIsAnalyzing(false);
-    }
-  }
-
-  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
+  async function processFile(file: File) {
     setExtractError(null);
     setIsExtracting(true);
     setUploadedFileName(file.name);
+    setUploadedFileSize(formatFileSize(file.size));
     toast.info(`Extracting text from ${file.name}...`, "Processing File");
 
     try {
@@ -259,238 +135,710 @@ export default function NewJobPage() {
     }
   }
 
+  function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    processFile(file);
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      processFile(file);
+    }
+  }
+
+  function handleRemoveFile() {
+    setUploadedFileName(null);
+    setUploadedFileSize(null);
+    setDescription("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
+  async function handleAnalyze() {
+    if (description.trim().length < 50) return;
+
+    // Requirement: Close accordions and show load screen
+    setIsJobDetailsOpen(false);
+    setIsJdOpen(false);
+    setAnalyzeError(null);
+    setIsAnalyzing(true);
+    toast.info("Analyzing job description with AI...", "Processing JD");
+
+    try {
+      const response = await fetch("/api/jobs/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobDescriptionText: description }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        const msg = data.error ?? "Failed to analyze the job description.";
+        setAnalyzeError(msg);
+        toast.error(msg);
+        return;
+      }
+
+      setAnalysis(data);
+      if (!title && data.job_title) setTitle(data.job_title);
+      if (!employmentType && data.employment_type) setEmploymentType(data.employment_type);
+      toast.success("Requirements successfully extracted from job spec!", "Analysis Complete");
+    } catch {
+      setAnalyzeError("Failed to analyze the job description.");
+      toast.error("Failed to analyze the job description.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }
+
+  async function pollSearchRunStatus(runId: string, currentJobId: string) {
+    const POLL_INTERVAL_MS = 1500;
+    const MAX_ATTEMPTS = 40;
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      const res = await fetch(`/api/search/${runId}/status`);
+      const run = await res.json();
+
+      if (!res.ok) {
+        const msg = run.error ?? "Failed to check search status.";
+        setSearchError(msg);
+        toast.error(msg, "Search Error");
+        return;
+      }
+
+      setSearchRun(run);
+
+      if (run.status === "complete" || run.status === "error") {
+        if (run.status === "error" && run.error) {
+          setSearchError(run.error);
+          toast.error(run.error, "Sourcing Failed");
+        } else if (run.status === "complete") {
+          const found = run.candidates_found ?? 0;
+          setCandidatesFoundCount(found);
+          setSavedJobId(currentJobId);
+          setIsSuccessModalOpen(true);
+          toast.success(`Found ${found} candidates! Sourcing complete.`, "Sourcing Succeeded");
+        }
+        return;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+    }
+
+    setSearchError("Search is taking longer than expected. Check back shortly.");
+    toast.warning("Search is taking longer than expected. Check back shortly.");
+  }
+
+  // Unified automatic flow: generates queries, saves job, searches candidates, and scores
+  async function handleGenerateAndFindCandidates() {
+    if (!analysis) return;
+
+    setSearchError(null);
+    setIsSearching(true);
+    setSearchStep("generating");
+    setSearchRun(null);
+    toast.info("Generating optimized search queries...", "Automated Sourcing");
+
+    try {
+      // 1. Generate optimized queries automatically
+      const queryResponse = await fetch("/api/jobs/generate-queries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(analysis),
+      });
+      const queryData = await queryResponse.json();
+
+      if (!queryResponse.ok) {
+        const msg = queryData.error ?? "Failed to generate search queries.";
+        setSearchError(msg);
+        toast.error(msg);
+        setIsSearching(false);
+        return;
+      }
+
+      const generatedQueries = queryData.search_queries;
+
+      // 2. Save job to Supabase
+      setSearchStep("sourcing");
+      toast.info("Saving role and scanning talent databases...", "Autonomous Search");
+
+      const jobResponse = await fetch("/api/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: title || analysis.job_title,
+          description,
+          location: company || analysis.location, // company mapped safely
+          employment_type: employmentType || analysis.employment_type,
+          work_arrangement: workArrangement,
+          seniority: analysis.seniority,
+          required_skills: analysis.required_skills,
+          preferred_skills: analysis.preferred_skills,
+          minimum_experience: analysis.years_of_experience.minimum,
+          maximum_experience: analysis.years_of_experience.maximum,
+          education: analysis.education,
+          certifications: analysis.certifications,
+          languages: analysis.languages,
+          keywords: analysis.keywords,
+          ai_analysis: analysis,
+        }),
+      });
+      const job = await jobResponse.json();
+
+      if (!jobResponse.ok) {
+        const msg = job.error ?? "Failed to save the job.";
+        setSearchError(msg);
+        toast.error(msg);
+        setIsSearching(false);
+        return;
+      }
+
+      setSavedJobId(job.id);
+
+      // 3. Trigger candidate search run
+      const searchResponse = await fetch(`/api/jobs/${job.id}/search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ queries: generatedQueries }),
+      });
+      const run = await searchResponse.json();
+
+      if (!searchResponse.ok) {
+        const msg = run.error ?? "Failed to run candidate search.";
+        setSearchError(msg);
+        toast.error(msg);
+        setIsSearching(false);
+        return;
+      }
+
+      setSearchRun(run);
+      setSearchStep("scoring");
+
+      // 4. Poll status until complete
+      await pollSearchRunStatus(run.id, job.id);
+    } catch {
+      setSearchError("An unexpected error occurred during candidate sourcing.");
+      toast.error("An unexpected error occurred during candidate sourcing.");
+    } finally {
+      setIsSearching(false);
+      setSearchStep("idle");
+    }
+  }
+
   return (
-    <main className="min-h-screen">
+    <main className="min-h-screen bg-slate-50/70 pb-24">
       <DashboardNav />
-      <div className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-6 sm:py-8">
-        <div>
-          <h1 className="font-display text-3xl font-semibold tracking-tight text-foreground">
-            New Job
+      <div className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-8 sm:px-6">
+        
+        {/* Header */}
+        <div className="flex flex-col gap-1">
+          <div className="inline-flex items-center gap-2 text-xs font-semibold text-indigo-600 uppercase tracking-wider">
+            <Sparkles className="h-3.5 w-3.5" />
+            AI Talent Pipeline
+          </div>
+          <h1 className="font-display text-3xl font-bold tracking-tight text-slate-900">
+            Create New Job Opening
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Paste or upload a job description — we&apos;ll extract requirements and
-            build a sourcing search for you.
+          <p className="text-sm text-slate-500">
+            Provide the role parameters and job description. Our AI will extract requirements, synthesize search queries, and source qualified candidates.
           </p>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-display text-xl">Job Details</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2">
-              <label htmlFor="job-title" className="text-sm font-medium">
-                Job Title
-              </label>
-              <Input
-                id="job-title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Senior React Developer"
-              />
+        {/* 1. Job Details Accordion */}
+        <Card className="shadow-sm border-slate-200 transition-all">
+          <CardHeader
+            className="cursor-pointer select-none pb-4 border-b border-slate-100 hover:bg-slate-50/50 transition-colors"
+            onClick={() => setIsJobDetailsOpen((prev) => !prev)}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 font-semibold text-sm">
+                  1
+                </div>
+                <div>
+                  <CardTitle className="text-base font-semibold text-slate-900">
+                    Job Details
+                  </CardTitle>
+                  <CardDescription className="text-xs text-slate-500">
+                    {isJobDetailsOpen
+                      ? "Specify job title, company, and employment structure"
+                      : `${title || "Role Title"} • ${company || "Company"} • ${employmentType || "Full-time"} • ${workArrangement || "Remote"}`}
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {!isJobDetailsOpen && (
+                  <Badge tone="neutral" className="text-xs font-normal">
+                    {title || "Configured"}
+                  </Badge>
+                )}
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500">
+                  {isJobDetailsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
+          </CardHeader>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <div className="flex flex-col gap-2">
-                <label htmlFor="job-location" className="text-sm font-medium">
-                  Location
+          {isJobDetailsOpen && (
+            <CardContent className="pt-6 flex flex-col gap-5 animate-in fade-in duration-200">
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="job-title" className="text-xs font-semibold text-slate-700">
+                  Job Title
                 </label>
                 <Input
-                  id="job-location"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="e.g. Cairo, Egypt"
+                  id="job-title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="e.g. Senior React Developer"
+                  className="bg-white"
                 />
               </div>
 
-              <div className="flex flex-col gap-2">
-                <span className="text-sm font-medium">Employment Type</span>
-                <Select value={employmentType} onValueChange={setEmploymentType}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {EMPLOYMENT_TYPES.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {type}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="job-company" className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                  <Building2 className="h-3.5 w-3.5 text-slate-400" />
+                  Company Name
+                </label>
+                <Input
+                  id="job-company"
+                  value={company}
+                  onChange={(e) => setCompany(e.target.value)}
+                  placeholder="e.g. Acme Corp / Client Name"
+                  className="bg-white"
+                />
               </div>
 
-              <div className="flex flex-col gap-2">
-                <span className="text-sm font-medium">Work Arrangement</span>
-                <Select
-                  value={workArrangement}
-                  onValueChange={setWorkArrangement}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select arrangement" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {WORK_ARRANGEMENTS.map((arrangement) => (
-                      <SelectItem key={arrangement} value={arrangement}>
-                        {arrangement}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs font-semibold text-slate-700">Employment Type</span>
+                  <Select value={employmentType} onValueChange={setEmploymentType}>
+                    <SelectTrigger className="bg-white">
+                      <SelectValue placeholder="Select type (e.g. Full-time)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {EMPLOYMENT_TYPES.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs font-semibold text-slate-700">Work Arrangement</span>
+                  <Select value={workArrangement} onValueChange={setWorkArrangement}>
+                    <SelectTrigger className="bg-white">
+                      <SelectValue placeholder="Select arrangement (e.g. Remote)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {WORK_ARRANGEMENTS.map((arrangement) => (
+                        <SelectItem key={arrangement} value={arrangement}>
+                          {arrangement}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            </div>
-          </CardContent>
+
+              <div className="flex justify-end pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsJobDetailsOpen(false)}
+                  className="text-xs text-slate-600"
+                >
+                  Save & Collapse
+                </Button>
+              </div>
+            </CardContent>
+          )}
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-display text-xl">Job Description</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant={mode === "paste" ? "default" : "outline"}
-                onClick={() => setMode("paste")}
-              >
-                Paste text
-              </Button>
-              <Button
-                type="button"
-                variant={mode === "upload" ? "default" : "outline"}
-                onClick={() => setMode("upload")}
-              >
-                Upload file
-              </Button>
+        {/* 2. Job Description Accordion */}
+        <Card className="shadow-sm border-slate-200 transition-all">
+          <CardHeader
+            className="cursor-pointer select-none pb-4 border-b border-slate-100 hover:bg-slate-50/50 transition-colors"
+            onClick={() => setIsJdOpen((prev) => !prev)}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 font-semibold text-sm">
+                  2
+                </div>
+                <div>
+                  <CardTitle className="text-base font-semibold text-slate-900">
+                    Job Description
+                  </CardTitle>
+                  <CardDescription className="text-xs text-slate-500">
+                    {isJdOpen
+                      ? "Upload a document or paste the raw job description"
+                      : uploadedFileName
+                        ? `File: ${uploadedFileName} (${uploadedFileSize})`
+                        : description
+                          ? `${description.slice(0, 60)}...`
+                          : "Empty job description"}
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {!isJdOpen && description && (
+                  <Badge tone="good" className="text-xs font-normal">
+                    {uploadedFileName ? "File Attached" : `${description.length} chars`}
+                  </Badge>
+                )}
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500">
+                  {isJdOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
+          </CardHeader>
 
-            {mode === "paste" ? (
-              <Textarea
-                data-testid="jd-textarea"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Paste the job description here..."
-                rows={12}
-              />
-            ) : (
-              <div className="flex flex-col gap-3">
-                <input
-                  ref={fileInputRef}
-                  data-testid="jd-file-input"
-                  type="file"
-                  accept=".pdf,.docx,.txt"
-                  onChange={handleFileChange}
-                  className="text-sm"
-                />
-                {isExtracting && (
-                  <p className="text-sm text-muted-foreground">
-                    Extracting text from {uploadedFileName}...
+          {isJdOpen && (
+            <CardContent className="pt-6 flex flex-col gap-5 animate-in fade-in duration-200">
+              
+              {/* Mode Toggle */}
+              <div className="flex items-center gap-2 p-1 bg-slate-100/80 rounded-lg w-fit">
+                <button
+                  type="button"
+                  onClick={() => setMode("upload")}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-all",
+                    mode === "upload"
+                      ? "bg-white text-slate-900 shadow-xs"
+                      : "text-slate-500 hover:text-slate-900"
+                  )}
+                >
+                  <UploadCloud className="h-3.5 w-3.5" />
+                  Upload File (PDF / DOCX)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode("paste")}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-all",
+                    mode === "paste"
+                      ? "bg-white text-slate-900 shadow-xs"
+                      : "text-slate-500 hover:text-slate-900"
+                  )}
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  Paste Text
+                </button>
+              </div>
+
+              {/* Upload Mode: Redesigned Drag & Drop Area */}
+              {mode === "upload" ? (
+                <div className="flex flex-col gap-3">
+                  <input
+                    ref={fileInputRef}
+                    data-testid="jd-file-input"
+                    type="file"
+                    accept=".pdf,.docx,.txt"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+
+                  {!uploadedFileName ? (
+                    <div
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setIsDragging(true);
+                      }}
+                      onDragLeave={() => setIsDragging(false)}
+                      onDrop={handleDrop}
+                      onClick={() => fileInputRef.current?.click()}
+                      className={cn(
+                        "flex flex-col items-center justify-center p-8 rounded-xl border-2 border-dashed transition-all cursor-pointer text-center",
+                        isDragging
+                          ? "border-indigo-500 bg-indigo-50/50"
+                          : "border-slate-200 hover:border-indigo-400 hover:bg-slate-50/80"
+                      )}
+                    >
+                      <div className="h-12 w-12 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 mb-3 shadow-xs">
+                        <UploadCloud className="h-6 w-6" />
+                      </div>
+                      <p className="text-sm font-semibold text-slate-900">
+                        Click to upload or drag & drop file
+                      </p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Supports PDF, DOCX, or TXT documents up to 10MB
+                      </p>
+                      <div className="flex items-center gap-2 mt-4">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600">PDF</span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600">DOCX</span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600">TXT</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-center justify-between p-4 rounded-xl border border-indigo-100 bg-indigo-50/40">
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs">
+                            DOC
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">{uploadedFileName}</p>
+                            <p className="text-xs text-slate-500">{uploadedFileSize} • Ready for analysis</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="text-xs h-8 bg-white"
+                          >
+                            Change File
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={handleRemoveFile}
+                            className="h-8 w-8 text-slate-400 hover:text-red-600"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {description && (
+                        <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-600 max-h-40 overflow-y-auto leading-relaxed">
+                          <span className="font-semibold text-slate-900 block mb-1">Extracted Text Preview:</span>
+                          {description}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {isExtracting && (
+                    <div className="flex items-center gap-2 text-xs font-medium text-indigo-600">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Parsing text from {uploadedFileName}...
+                    </div>
+                  )}
+
+                  {extractError && (
+                    <p role="alert" className="text-xs font-medium text-red-600">
+                      {extractError}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                /* Paste Text Mode */
+                <div className="flex flex-col gap-2">
+                  <Textarea
+                    data-testid="jd-textarea"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Paste the full job description here (responsibilities, technical requirements, qualifications)..."
+                    rows={10}
+                    className="bg-white text-sm leading-relaxed"
+                  />
+                  <div className="flex justify-between items-center text-xs text-slate-400">
+                    <span>Minimum 50 characters required</span>
+                    <span>{description.length} characters</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Action: Analyze Job Button */}
+              <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
+                <Button
+                  type="button"
+                  onClick={handleAnalyze}
+                  disabled={isAnalyzing || description.trim().length < 50}
+                  className="w-full sm:w-auto self-end bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
+                >
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Analyze Job with AI
+                </Button>
+                {analyzeError && (
+                  <p role="alert" className="text-xs font-medium text-red-600 text-right">
+                    {analyzeError}
                   </p>
                 )}
-                {extractError && (
-                  <p role="alert" className="text-sm text-destructive">
-                    {extractError}
-                  </p>
-                )}
-                {!isExtracting && description && !extractError && (
-                  <div
-                    data-testid="jd-preview"
-                    className="max-h-64 overflow-y-auto rounded-md border p-3 text-sm text-muted-foreground"
+              </div>
+            </CardContent>
+          )}
+        </Card>
+
+        {/* 3. Loading Screen when Analyzing */}
+        {isAnalyzing && (
+          <Card className="border-indigo-200 bg-gradient-to-br from-indigo-50/60 via-white to-indigo-50/30 p-8 text-center shadow-lg animate-in fade-in duration-300">
+            <div className="flex flex-col items-center justify-center max-w-md mx-auto">
+              <div className="relative mb-5">
+                <div className="h-16 w-16 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 animate-pulse">
+                  <Sparkles className="h-8 w-8" />
+                </div>
+                <div className="absolute inset-0 rounded-full border-2 border-indigo-400 border-t-transparent animate-spin" />
+              </div>
+              <h3 className="font-display text-xl font-bold text-slate-900">
+                Analyzing Job Description...
+              </h3>
+              <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                Our AI model is extracting required technical skills, preferred competencies, seniority level, and candidate qualifications.
+              </p>
+              <div className="w-full bg-indigo-100 rounded-full h-1.5 mt-6 overflow-hidden">
+                <div className="bg-indigo-600 h-full rounded-full animate-indeterminate" />
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* 4. Extracted Requirements Section (Redesigned & Pleasant) */}
+        {analysis && (
+          <Card className="shadow-sm border-slate-200 animate-in fade-in duration-300">
+            <CardHeader className="pb-4 border-b border-slate-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="font-display text-xl font-bold text-slate-900">
+                    Extracted Requirements
+                  </CardTitle>
+                  <CardDescription className="text-xs text-slate-500">
+                    Review and fine-tune extracted parameters before autonomous candidate discovery
+                  </CardDescription>
+                </div>
+                <Badge tone="good" className="text-xs font-medium">
+                  Analysis Verified
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <RequirementsEditor value={analysis} onChange={setAnalysis} />
+
+              {/* 5. Automated Sourcing Trigger (No Search Query Form shown!) */}
+              <div className="mt-8 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-6 text-white shadow-md">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div>
+                    <h4 className="text-base font-bold text-white flex items-center gap-2">
+                      <Search className="h-4 w-4 text-indigo-400" />
+                      Ready to Find Candidates?
+                    </h4>
+                    <p className="text-xs text-slate-300 mt-1 max-w-xl leading-relaxed">
+                      Click below to automatically synthesize targeted queries, search authorized web sources, deduplicate records, and score candidate profiles against your criteria.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="lg"
+                    onClick={handleGenerateAndFindCandidates}
+                    disabled={isSearching}
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow-lg shadow-indigo-600/30 shrink-0"
                   >
-                    {description}
+                    {isSearching ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Finding Candidates...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Generate Queries & Find Candidates
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {/* Sourcing in progress live banner */}
+                {isSearching && (
+                  <div className="mt-4 pt-4 border-t border-white/10 flex items-center gap-3 text-xs text-indigo-200">
+                    <Loader2 className="h-4 w-4 animate-spin text-indigo-400" />
+                    <span>
+                      {searchStep === "generating" && "Synthesizing multi-variable search queries..."}
+                      {searchStep === "sourcing" && "Querying authorized talent pools across public sources..."}
+                      {searchStep === "scoring" && "Deduplicating candidates and computing AI match scores..."}
+                    </span>
+                  </div>
+                )}
+
+                {searchError && (
+                  <div className="mt-3 rounded-lg bg-red-500/20 p-3 border border-red-500/30 text-xs text-red-200">
+                    {searchError}
                   </div>
                 )}
               </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <div className="flex flex-col gap-2">
-          <Button
-            type="button"
-            onClick={handleAnalyze}
-            disabled={isAnalyzing || description.trim().length < 50}
-          >
-            {isAnalyzing ? "Analyzing..." : "Analyze Job"}
-          </Button>
-          {analyzeError && (
-            <p role="alert" className="text-sm text-destructive">
-              {analyzeError}
-            </p>
-          )}
-        </div>
-
-        {analysis && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-display text-xl">Extracted Requirements</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <RequirementsEditor value={analysis} onChange={setAnalysis} />
             </CardContent>
           </Card>
         )}
 
-        {analysis && (
-          <div className="flex flex-col gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleGenerateQueries}
-              disabled={isGeneratingQueries}
-            >
-              {isGeneratingQueries
-                ? "Generating..."
-                : "Generate Search Queries"}
-            </Button>
-            {generateQueriesError && (
-              <p role="alert" className="text-sm text-destructive">
-                {generateQueriesError}
+      </div>
+
+      {/* 6. Success Alert in Middle of Screen Modal */}
+      {isSuccessModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"
+        >
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 sm:p-8 text-center shadow-2xl ring-1 ring-slate-900/10 animate-in zoom-in-95 duration-200">
+            
+            {/* Success Icon */}
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 mb-5 ring-8 ring-emerald-50">
+              <CheckCircle2 className="h-8 w-8" />
+            </div>
+
+            <h2 className="font-display text-2xl font-bold text-slate-900">
+              Candidate Sourcing Complete!
+            </h2>
+
+            <p className="text-sm text-slate-600 mt-2 leading-relaxed">
+              Successfully identified and evaluated{" "}
+              <span className="font-bold text-slate-900 text-base">
+                {candidatesFoundCount} candidates
+              </span>{" "}
+              matching your requirements for{" "}
+              <span className="font-medium text-slate-900">
+                {title || analysis?.job_title || "this role"}
+              </span>.
+            </p>
+
+            {company && (
+              <p className="text-xs text-slate-400 mt-1">
+                Company: <span className="font-medium text-slate-600">{company}</span>
               </p>
             )}
-          </div>
-        )}
 
-        {searchQueries.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-display text-xl">Search Queries</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              <SearchQueries
-                queries={searchQueries}
-                onChange={setSearchQueries}
-              />
+            {/* Two Action Buttons */}
+            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
               <Button
                 type="button"
-                onClick={handleFindCandidates}
-                disabled={isSearching}
+                variant="outline"
+                onClick={() => setIsSuccessModalOpen(false)}
+                className="w-full sm:w-1/2 text-slate-700 hover:bg-slate-50"
               >
-                {isSearching ? "Searching..." : "Find Candidates"}
+                Close
               </Button>
-              {searchError && (
-                <p role="alert" className="text-sm text-destructive">
-                  {searchError}
-                </p>
-              )}
-              {searchRun && (
-                <div
-                  data-testid="search-run-result"
-                  className="rounded-md border p-3 text-sm"
-                >
-                  <p data-testid="search-run-status">Status: {searchRun.status}</p>
-                  {searchRun.status === "complete" && (
-                    <>
-                      <p>Candidates found: {searchRun.candidates_found ?? searchRun.total_results}</p>
-                      <p>New candidates: {searchRun.candidates_new ?? "—"}</p>
-                      <p>Credits used: {searchRun.credits_used ?? 0}</p>
-                    </>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-      </div>
+
+              <Button
+                type="button"
+                onClick={() => {
+                  setIsSuccessModalOpen(false);
+                  if (savedJobId) {
+                    router.push(`/candidates?jobId=${savedJobId}`);
+                  } else {
+                    router.push("/candidates");
+                  }
+                }}
+                className="w-full sm:w-1/2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-md shadow-indigo-600/20"
+              >
+                Show Candidates
+                <ArrowRight className="ml-1.5 h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </main>
   );
 }
