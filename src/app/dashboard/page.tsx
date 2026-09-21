@@ -9,8 +9,6 @@ import {
   Search,
   Sparkles,
   ArrowRight,
-  CheckCircle2,
-  FileCheck2,
 } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -373,7 +371,7 @@ export default async function DashboardPage() {
                   </div>
                   <p className="text-sm font-medium text-slate-900">No searches executed yet</p>
                   <p className="text-xs text-slate-500 max-w-xs mt-1">
-                    When you click "Find Candidates" on any job, background sourcing runs will show up here.
+                    When you click &quot;Find Candidates&quot; on any job, background sourcing runs will show up here.
                   </p>
                 </div>
               ) : (
