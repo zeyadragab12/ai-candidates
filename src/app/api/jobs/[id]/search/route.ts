@@ -1,0 +1,274 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import { env } from "@/lib/env";
+import { requireUser } from "@/lib/api/requireUser";
+import { getSearchProvider } from "@/lib/search";
+import { normalizeCandidate } from "@/lib/candidates/normalize";
+import { dedupeCandidates, getCandidateIdentityKey } from "@/lib/candidates/dedupe";
+import { persistCandidates } from "@/lib/candidates/persist";
+import { withErrorHandling } from "@/lib/errors";
+import { getJobQueue } from "@/lib/jobs/queue";
+import { createLogger, getOrCreateRequestId, type RequestLogger } from "@/lib/logger";
+import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import type { CandidateSearchResult } from "@/types/search";
+import type { NormalizedCandidate } from "@/types/candidate";
+
+interface RouteParams {
+  params: Promise<{ id: string }>;
+}
+
+const requestSchema = z.object({
+  queries: z
+    .array(z.string().trim().min(1))
+    .min(1, "At least one search query is required."),
+});
+
+/**
+ * Does the actual search work: runs after the HTTP response has already
+ * been sent (see getJobQueue), so the client never blocks on it. Progress
+ * is visible the whole time via GET /api/search/:runId/status, which just
+ * reads search_runs.status (pending -> running -> complete/error).
+ */
+async function processSearchRun(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any, any, any>,
+  userId: string,
+  jobId: string,
+  runId: string,
+  queries: string[],
+  provider: string,
+  location: string | null,
+  logger: RequestLogger,
+): Promise<void> {
+  logger.info("Search run started", { jobId, runId, provider, queryCount: queries.length });
+
+  await supabase
+    .from("search_runs")
+    .update({ status: "running", started_at: new Date().toISOString() })
+    .eq("id", runId);
+
+  const { error: createQueriesError } = await supabase
+    .from("search_queries")
+    .insert(queries.map((query) => ({ job_id: jobId, query, provider })));
+
+  if (createQueriesError) {
+    logger.error("Search run failed: could not save search queries", {
+      jobId,
+      runId,
+      error: createQueriesError,
+    });
+    await supabase
+      .from("search_runs")
+      .update({
+        status: "error",
+        error: "Failed to save search queries.",
+        completed_at: new Date().toISOString(),
+      })
+      .eq("id", runId);
+    return;
+  }
+
+  const searchProvider = getSearchProvider();
+  const allResults: CandidateSearchResult[] = [];
+  const queryErrors: string[] = [];
+
+  for (const query of queries) {
+    try {
+      const results = await searchProvider.searchCandidates({
+        query,
+        location: location ?? undefined,
+      });
+      allResults.push(...results);
+    } catch (error) {
+      logger.warn("Search query failed", { jobId, runId, query, error });
+      queryErrors.push(
+        error instanceof Error ? error.message : "Unknown search error",
+      );
+    }
+  }
+
+  if (allResults.length === 0 && queryErrors.length > 0) {
+    logger.error("Search run failed: all queries failed", { jobId, runId });
+    await supabase
+      .from("search_runs")
+      .update({
+        status: "error",
+        error: queryErrors.join("; "),
+        completed_at: new Date().toISOString(),
+      })
+      .eq("id", runId);
+    return;
+  }
+
+  // Normalize + dedupe raw results, tracking which raw result each
+  // normalized candidate came from so it can be stored as raw_data for
+  // traceability (best-effort: for merged duplicates, this is the first
+  // raw result observed for that identity, matching dedupe's own
+  // "existing wins" merge philosophy).
+  const referenceToRaw = new Map<NormalizedCandidate, CandidateSearchResult>();
+  const identityKeyToRaw = new Map<string, CandidateSearchResult>();
+  const normalized: NormalizedCandidate[] = [];
+
+  for (const raw of allResults) {
+    const candidate = normalizeCandidate(raw);
+    normalized.push(candidate);
+    referenceToRaw.set(candidate, raw);
+    const key = getCandidateIdentityKey(candidate);
+    if (key && !identityKeyToRaw.has(key)) {
+      identityKeyToRaw.set(key, raw);
+    }
+  }
+
+  const dedupedCandidates = dedupeCandidates(normalized);
+
+  const rawDataByCandidate = new Map<NormalizedCandidate, unknown>();
+  for (const candidate of dedupedCandidates) {
+    const raw =
+      referenceToRaw.get(candidate) ??
+      (() => {
+        const key = getCandidateIdentityKey(candidate);
+        return key ? identityKeyToRaw.get(key) : undefined;
+      })();
+    if (raw) rawDataByCandidate.set(candidate, raw);
+  }
+
+  const persisted = await persistCandidates(
+    supabase,
+    userId,
+    dedupedCandidates,
+    rawDataByCandidate,
+  );
+  const newCandidateCount = persisted.filter((p) => p.isNew).length;
+
+  let jobCandidatesLinkError: string | null = null;
+  if (persisted.length > 0) {
+    const { error } = await supabase.from("job_candidates").upsert(
+      persisted.map((p) => ({ job_id: jobId, candidate_id: p.id })),
+      { onConflict: "job_id,candidate_id", ignoreDuplicates: true },
+    );
+    if (error) jobCandidatesLinkError = "Failed to link some candidates to this job.";
+  }
+
+  // Mock provider is free; real providers (step 3.8) will report actual cost.
+  const creditsUsed = provider === "mock" ? 0 : queries.length;
+
+  await supabase
+    .from("search_runs")
+    .update({
+      status: "complete",
+      total_results: allResults.length,
+      raw_results: allResults,
+      candidates_found: dedupedCandidates.length,
+      candidates_new: newCandidateCount,
+      credits_used: creditsUsed,
+      completed_at: new Date().toISOString(),
+      error:
+        [
+          queryErrors.length > 0 ? queryErrors.join("; ") : null,
+          jobCandidatesLinkError,
+        ]
+          .filter(Boolean)
+          .join("; ") || null,
+    })
+    .eq("id", runId);
+
+  logger.info("Search run complete", {
+    jobId,
+    runId,
+    totalResults: allResults.length,
+    candidatesFound: dedupedCandidates.length,
+    candidatesNew: newCandidateCount,
+  });
+}
+
+export const POST = withErrorHandling(async (
+  request: Request,
+  { params }: RouteParams,
+  logger: RequestLogger = createLogger("no-request-id"),
+) => {
+  const auth = await requireUser();
+  if ("error" in auth) return auth.error;
+  const { supabase } = auth;
+  const { id: jobId } = await params;
+
+  await enforceRateLimit(
+    `search:${auth.user.id}`,
+    RATE_LIMITS.searchRequest.limit,
+    RATE_LIMITS.searchRequest.windowSeconds,
+  );
+
+  const job = await supabase
+    .from("jobs")
+    .select("id, location")
+    .eq("id", jobId)
+    .maybeSingle();
+
+  if (job.error) {
+    return NextResponse.json({ error: "Failed to load job." }, { status: 500 });
+  }
+  if (!job.data) {
+    return NextResponse.json({ error: "Job not found." }, { status: 404 });
+  }
+  const jobLocation: string | null = job.data.location ?? null;
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { error: "Request body must be valid JSON." },
+      { status: 400 },
+    );
+  }
+
+  const parsed = requestSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? "Invalid request." },
+      { status: 400 },
+    );
+  }
+  const { queries } = parsed.data;
+
+  const provider = env.SEARCH_PROVIDER;
+
+  const { data: run, error: createRunError } = await supabase
+    .from("search_runs")
+    .insert({
+      job_id: jobId,
+      provider,
+      status: "pending",
+    })
+    .select()
+    .single();
+
+  if (createRunError || !run) {
+    return NextResponse.json(
+      { error: "Failed to start search run." },
+      { status: 500 },
+    );
+  }
+
+  // Enqueued, not awaited: the response below is sent immediately, and the
+  // client tracks progress via GET /api/search/:runId/status. The request's
+  // correlation id is passed through so background log lines can be tied
+  // back to the request that started them.
+  getJobQueue().enqueue(
+    () =>
+      processSearchRun(
+        supabase,
+        auth.user.id,
+        jobId,
+        run.id,
+        queries,
+        provider,
+        jobLocation,
+        logger,
+      ),
+    getOrCreateRequestId(request),
+  );
+
+  return NextResponse.json(run, { status: 202 });
+});
