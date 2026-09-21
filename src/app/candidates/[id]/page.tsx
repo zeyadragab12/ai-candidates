@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 
 const CANDIDATE_STATUSES = [
@@ -123,12 +124,16 @@ function CandidateProfileContent() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setStatusError(data.error ?? "Failed to update status.");
+        const msg = data.error ?? "Failed to update status.";
+        setStatusError(msg);
+        toast.error(msg, "Status Update Failed");
         return;
       }
       setCandidate(data);
+      toast.success(`Candidate status updated to "${status}"`, "Status Updated");
     } catch {
       setStatusError("Failed to update status.");
+      toast.error("Failed to update status.");
     } finally {
       setIsUpdatingStatus(false);
     }
@@ -146,13 +151,17 @@ function CandidateProfileContent() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setNoteError(data.error ?? "Failed to save note.");
+        const msg = data.error ?? "Failed to save note.";
+        setNoteError(msg);
+        toast.error(msg, "Save Note Failed");
         return;
       }
       setNotes((prev) => [data, ...prev]);
       setNoteDraft("");
+      toast.success("Recruiter note saved to candidate record", "Note Added");
     } catch {
       setNoteError("Failed to save note.");
+      toast.error("Failed to save note.");
     } finally {
       setIsSavingNote(false);
     }

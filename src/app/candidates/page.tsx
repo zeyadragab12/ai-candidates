@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toast } from "@/components/ui/toast";
 
 const CANDIDATE_STATUSES = [
   "New",
@@ -180,7 +181,9 @@ function CandidatesTable({ jobId }: { jobId: string }) {
       });
       const data = await res.json();
       if (!res.ok) {
-        setStatusError(data.error ?? "Failed to update status.");
+        const msg = data.error ?? "Failed to update status.";
+        setStatusError(msg);
+        toast.error(msg, "Status Update Failed");
         return;
       }
       setCandidates((prev) =>
@@ -188,8 +191,10 @@ function CandidatesTable({ jobId }: { jobId: string }) {
           candidate.id === candidateId ? { ...candidate, status } : candidate,
         ),
       );
+      toast.success(`Candidate status marked as "${status}"`, "Status Updated");
     } catch {
       setStatusError("Failed to update status.");
+      toast.error("Failed to update status.");
     } finally {
       setUpdatingStatusId(null);
     }
@@ -199,20 +204,25 @@ function CandidatesTable({ jobId }: { jobId: string }) {
     setIsScoring(true);
     setScoreError(null);
     setScoreSummary(null);
+    toast.info("Evaluating all candidate profiles against job requirements...", "Batch Matching");
 
     try {
       const res = await fetch(`/api/jobs/${jobId}/match`, { method: "POST" });
       const data = await res.json();
 
       if (!res.ok) {
-        setScoreError(data.error ?? "Failed to score candidates.");
+        const msg = data.error ?? "Failed to score candidates.";
+        setScoreError(msg);
+        toast.error(msg, "Match Scoring Failed");
         return;
       }
 
       setScoreSummary(data);
       setRefreshToken((t) => t + 1);
+      toast.success(`Scored ${data.succeeded} candidates successfully!`, "Match Scoring Completed");
     } catch {
       setScoreError("Failed to score candidates.");
+      toast.error("Failed to score candidates.");
     } finally {
       setIsScoring(false);
     }

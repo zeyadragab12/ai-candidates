@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toast } from "@/components/ui/toast";
 import type { JobAnalysis } from "@/types/job-analysis";
 
 type InputMode = "paste" | "upload";
@@ -69,7 +70,9 @@ export default function NewJobPage() {
       const run = await res.json();
 
       if (!res.ok) {
-        setSearchError(run.error ?? "Failed to check search status.");
+        const msg = run.error ?? "Failed to check search status.";
+        setSearchError(msg);
+        toast.error(msg, "Search Error");
         return;
       }
 
@@ -78,6 +81,12 @@ export default function NewJobPage() {
       if (run.status === "complete" || run.status === "error") {
         if (run.status === "error" && run.error) {
           setSearchError(run.error);
+          toast.error(run.error, "Sourcing Failed");
+        } else if (run.status === "complete") {
+          toast.success(
+            `Found ${run.candidates_found ?? 0} candidates! AI scoring completed.`,
+            "Sourcing Succeeded"
+          );
         }
         return;
       }
@@ -86,6 +95,7 @@ export default function NewJobPage() {
     }
 
     setSearchError("Search is taking longer than expected. Check back shortly.");
+    toast.warning("Search is taking longer than expected. Check back shortly.");
   }
 
   async function handleFindCandidates() {
@@ -94,6 +104,7 @@ export default function NewJobPage() {
     setSearchError(null);
     setIsSearching(true);
     setSearchRun(null);
+    toast.info("Saving job and launching candidate search...", "Starting Sourcing");
 
     try {
       const jobResponse = await fetch("/api/jobs", {
@@ -120,7 +131,9 @@ export default function NewJobPage() {
       const job = await jobResponse.json();
 
       if (!jobResponse.ok) {
-        setSearchError(job.error ?? "Failed to save the job.");
+        const msg = job.error ?? "Failed to save the job.";
+        setSearchError(msg);
+        toast.error(msg);
         return;
       }
 
@@ -132,7 +145,9 @@ export default function NewJobPage() {
       const run = await searchResponse.json();
 
       if (!searchResponse.ok) {
-        setSearchError(run.error ?? "Failed to run the candidate search.");
+        const msg = run.error ?? "Failed to run the candidate search.";
+        setSearchError(msg);
+        toast.error(msg);
         return;
       }
 
@@ -140,6 +155,7 @@ export default function NewJobPage() {
       await pollSearchRunStatus(run.id);
     } catch {
       setSearchError("Failed to run the candidate search.");
+      toast.error("Failed to run the candidate search.");
     } finally {
       setIsSearching(false);
     }
@@ -150,6 +166,7 @@ export default function NewJobPage() {
 
     setGenerateQueriesError(null);
     setIsGeneratingQueries(true);
+    toast.info("Generating optimized search queries with AI...", "Working");
 
     try {
       const response = await fetch("/api/jobs/generate-queries", {
@@ -160,15 +177,17 @@ export default function NewJobPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        setGenerateQueriesError(
-          data.error ?? "Failed to generate search queries.",
-        );
+        const msg = data.error ?? "Failed to generate search queries.";
+        setGenerateQueriesError(msg);
+        toast.error(msg);
         return;
       }
 
       setSearchQueries(data.search_queries);
+      toast.success(`${data.search_queries.length} search queries generated!`, "Queries Ready");
     } catch {
       setGenerateQueriesError("Failed to generate search queries.");
+      toast.error("Failed to generate search queries.");
     } finally {
       setIsGeneratingQueries(false);
     }
@@ -177,6 +196,7 @@ export default function NewJobPage() {
   async function handleAnalyze() {
     setAnalyzeError(null);
     setIsAnalyzing(true);
+    toast.info("Analyzing job description with AI...", "Processing JD");
 
     try {
       const response = await fetch("/api/jobs/analyze", {
@@ -187,13 +207,17 @@ export default function NewJobPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        setAnalyzeError(data.error ?? "Failed to analyze the job description.");
+        const msg = data.error ?? "Failed to analyze the job description.";
+        setAnalyzeError(msg);
+        toast.error(msg);
         return;
       }
 
       setAnalysis(data);
+      toast.success("Requirements successfully extracted from job spec!", "Analysis Complete");
     } catch {
       setAnalyzeError("Failed to analyze the job description.");
+      toast.error("Failed to analyze the job description.");
     } finally {
       setIsAnalyzing(false);
     }
@@ -206,6 +230,7 @@ export default function NewJobPage() {
     setExtractError(null);
     setIsExtracting(true);
     setUploadedFileName(file.name);
+    toast.info(`Extracting text from ${file.name}...`, "Processing File");
 
     try {
       const formData = new FormData();
@@ -218,13 +243,17 @@ export default function NewJobPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        setExtractError(data.error ?? "Failed to extract text from file.");
+        const msg = data.error ?? "Failed to extract text from file.";
+        setExtractError(msg);
+        toast.error(msg);
         return;
       }
 
       setDescription(data.text);
+      toast.success(`Extracted content from ${file.name}`, "Upload Successful");
     } catch {
       setExtractError("Failed to upload or process the file.");
+      toast.error("Failed to upload or process the file.");
     } finally {
       setIsExtracting(false);
     }

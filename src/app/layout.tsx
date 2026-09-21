@@ -15,10 +15,14 @@ export const metadata: Metadata = {
   description: "AI-assisted candidate sourcing and recruitment research",
 };
 
+import { ToastProvider } from "@/components/ui/toast";
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${fraunces.variable}`}>
-      <body className="font-sans antialiased">{children}</body>
+      <body className="font-sans antialiased">
+        <ToastProvider>{children}</ToastProvider>
+      </body>
     </html>
   );
 }
