@@ -1,3 +1,5 @@
+import "./domMatrixPolyfill";
+
 import mammoth from "mammoth";
 import { PDFParse } from "pdf-parse";
 
