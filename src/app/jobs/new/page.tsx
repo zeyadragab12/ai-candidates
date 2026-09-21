@@ -273,7 +273,7 @@ export default function NewJobPage() {
         body: JSON.stringify({
           title: title || analysis.job_title,
           description,
-          location: company || analysis.location, // company mapped safely
+          location: analysis.location,
           employment_type: employmentType || analysis.employment_type,
           work_arrangement: workArrangement,
           seniority: analysis.seniority,
