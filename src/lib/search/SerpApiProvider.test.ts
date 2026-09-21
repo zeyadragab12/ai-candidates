@@ -195,7 +195,9 @@ describe("SerpApiProvider", () => {
   });
 
   it("throws SearchProviderError when the HTTP response is not ok", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 401 });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: false, status: 401, text: async () => "" });
     vi.stubGlobal("fetch", fetchMock);
 
     const provider = new SerpApiProvider("bad-key");
@@ -230,7 +232,7 @@ describe("SerpApiProvider", () => {
   it("retries a 429 and succeeds once the provider recovers", async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce({ ok: false, status: 429 })
+      .mockResolvedValueOnce({ ok: false, status: 429, text: async () => "" })
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({ organic_results: [] }),
@@ -245,7 +247,9 @@ describe("SerpApiProvider", () => {
   });
 
   it("does not retry a 401 (retrying a bad key won't fix it)", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 401 });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: false, status: 401, text: async () => "" });
     vi.stubGlobal("fetch", fetchMock);
 
     const provider = new SerpApiProvider("bad-key");
@@ -256,7 +260,9 @@ describe("SerpApiProvider", () => {
   });
 
   it("gives up after exhausting retries on a persistent 503", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 503 });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: false, status: 503, text: async () => "" });
     vi.stubGlobal("fetch", fetchMock);
 
     const provider = new SerpApiProvider("test-key");

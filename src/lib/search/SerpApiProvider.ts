@@ -20,8 +20,13 @@ const RETRY_OPTIONS = {
 /** Marks the error with the HTTP status so withRetry's isRetryable can see it
  * without re-fetching or re-parsing the response. */
 class SerpApiHttpError extends Error {
-  constructor(public readonly status: number) {
-    super(`SerpApi request failed with status ${status}`);
+  constructor(
+    public readonly status: number,
+    body?: string,
+  ) {
+    super(
+      `SerpApi request failed with status ${status}${body ? `: ${body}` : ""}`,
+    );
   }
 }
 
@@ -141,7 +146,7 @@ export class SerpApiProvider implements SearchProvider {
             signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
           });
           if (!response.ok) {
-            throw new SerpApiHttpError(response.status);
+            throw new SerpApiHttpError(response.status, await response.text());
           }
           return (await response.json()) as SerpApiResponse;
         },
