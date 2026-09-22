@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, Plus, Sparkles, GraduationCap, Briefcase, Tag, CheckCircle2 } from "lucide-react";
+import { X, Plus, GraduationCap, Briefcase, Tag, CheckCircle2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -147,7 +147,6 @@ export function RequirementsEditor({ value, onChange }: RequirementsEditorProps)
       <div className="rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50/50 via-white to-slate-50 p-5 shadow-sm">
         <div className="flex items-center justify-between mb-4 pb-3 border-b border-indigo-100/80">
           <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-indigo-600" />
             <h3 className="text-sm font-semibold text-slate-900">Extracted Role Profile</h3>
           </div>
           <span className="text-xs text-indigo-600 bg-indigo-50 font-medium px-2.5 py-0.5 rounded-full border border-indigo-200/60">

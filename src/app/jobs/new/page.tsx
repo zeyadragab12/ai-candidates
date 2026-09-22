@@ -12,7 +12,6 @@ import {
   Loader2,
   Plus,
   Search,
-  Sparkles,
   UploadCloud,
   Users,
   X,
@@ -365,7 +364,6 @@ export default function NewJobPage() {
         {/* Header */}
         <div className="flex flex-col gap-1">
           <div className="inline-flex items-center gap-2 text-xs font-semibold text-indigo-600 uppercase tracking-wider">
-            <Sparkles className="h-3.5 w-3.5" />
             AI Talent Pipeline
           </div>
           <h1 className="font-display text-3xl font-bold tracking-tight text-slate-900">
@@ -728,7 +726,6 @@ export default function NewJobPage() {
                   disabled={isAnalyzing || description.trim().length < 50}
                   className="w-full sm:w-auto self-end bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
                 >
-                  <Sparkles className="mr-2 h-4 w-4" />
                   Analyze Job with AI
                 </Button>
                 {analyzeError && (
@@ -747,7 +744,7 @@ export default function NewJobPage() {
             <div className="flex flex-col items-center justify-center max-w-md mx-auto">
               <div className="relative mb-5">
                 <div className="h-16 w-16 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 animate-pulse">
-                  <Sparkles className="h-8 w-8" />
+                  <FileText className="h-8 w-8" />
                 </div>
                 <div className="absolute inset-0 rounded-full border-2 border-indigo-400 border-t-transparent animate-spin" />
               </div>
@@ -812,7 +809,7 @@ export default function NewJobPage() {
                       </>
                     ) : (
                       <>
-                        <Sparkles className="mr-2 h-4 w-4" />
+                        <Search className="mr-2 h-4 w-4" />
                         Generate Queries & Find Candidates
                       </>
                     )}

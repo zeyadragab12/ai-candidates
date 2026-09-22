@@ -1,13 +1,12 @@
 import {
   Briefcase,
   Plus,
-  Star,
+  UserCheck,
   Target,
   Users,
   Activity,
   FileText,
   Search,
-  Sparkles,
   ArrowRight,
 } from "lucide-react";
 import Link from "next/link";
@@ -135,7 +134,6 @@ export default async function DashboardPage() {
           <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
             <div className="max-w-2xl">
               <div className="inline-flex items-center gap-2 rounded-full bg-indigo-500/20 px-3 py-1 text-xs font-medium text-indigo-300 ring-1 ring-inset ring-indigo-500/30 mb-3">
-                <Sparkles className="h-3.5 w-3.5" />
                 AI-Powered Recruitment Pipeline
               </div>
               <h1 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-white">
@@ -223,7 +221,7 @@ export default async function DashboardPage() {
           <StatCard
             label="Shortlisted Talent"
             value={shortlistedCandidates}
-            icon={Star}
+            icon={UserCheck}
             tone="amber"
           />
           <StatCard
