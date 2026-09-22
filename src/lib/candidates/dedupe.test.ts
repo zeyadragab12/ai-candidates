@@ -12,6 +12,7 @@ function makeCandidate(
     current_company: null,
     location: null,
     profile_url: null,
+    profile_image_url: null,
     source: "mock",
     source_url: "https://example.com/search",
     summary: null,

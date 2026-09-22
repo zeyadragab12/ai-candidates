@@ -19,6 +19,7 @@ export function normalizeCandidate(
     current_company: raw.company ?? null,
     location: raw.location ?? null,
     profile_url: raw.profile_url ?? null,
+    profile_image_url: raw.profile_image_url ?? null,
     source: raw.source,
     source_url: raw.source_url,
     summary: raw.snippet ?? null,

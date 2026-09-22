@@ -20,12 +20,6 @@ const SORT_FIELDS: CandidateSortField[] = [
   "created_at",
 ];
 
-function parseNumberParam(value: string | null): number | undefined {
-  if (value === null || value.trim() === "") return undefined;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
 export const GET = withErrorHandling(async (request: Request, { params }: RouteParams) => {
   const auth = await requireUser();
   if ("error" in auth) return auth.error;
@@ -72,11 +66,7 @@ export const GET = withErrorHandling(async (request: Request, { params }: RouteP
     skill: searchParams.get("skill") ?? undefined,
     location: searchParams.get("location") ?? undefined,
     company: searchParams.get("company") ?? undefined,
-    source: searchParams.get("source") ?? undefined,
-    minExperience: parseNumberParam(searchParams.get("min_experience")),
-    maxExperience: parseNumberParam(searchParams.get("max_experience")),
-    minMatchScore: parseNumberParam(searchParams.get("min_match_score")),
-    maxMatchScore: parseNumberParam(searchParams.get("max_match_score")),
+    status: searchParams.get("status") ?? undefined,
   };
 
   // Fetched in full (not DB-paginated) so filtering/sorting/pagination stay

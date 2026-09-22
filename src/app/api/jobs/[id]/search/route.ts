@@ -127,6 +127,7 @@ async function processSearchRun(
             snippet: enrichment.about ?? result.snippet,
             skills: enrichment.skills?.length ? enrichment.skills : result.skills,
             experience_years: enrichment.experienceYears ?? result.experience_years,
+            profile_image_url: enrichment.profileImageUrl ?? result.profile_image_url,
           };
         });
         logger.info("LinkedIn enrichment complete", {

@@ -13,6 +13,7 @@ export interface CandidateSearchResult {
   company?: string;
   location?: string;
   profile_url?: string;
+  profile_image_url?: string;
   snippet?: string;
   skills?: string[];
   /** Only ever set from a structured source (e.g. an Apify LinkedIn profile

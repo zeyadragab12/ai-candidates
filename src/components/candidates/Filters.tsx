@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CANDIDATE_STATUSES } from "@/lib/candidates/statuses";
 import type {
   CandidateSortField,
   SortDirection,
@@ -21,11 +22,7 @@ export interface CandidateFilterState {
   skill: string;
   location: string;
   company: string;
-  source: string;
-  minExperience: string;
-  maxExperience: string;
-  minMatchScore: string;
-  maxMatchScore: string;
+  status: string;
   sortBy: CandidateSortField;
   sortDir: SortDirection;
 }
@@ -35,14 +32,12 @@ export const DEFAULT_CANDIDATE_FILTERS: CandidateFilterState = {
   skill: "",
   location: "",
   company: "",
-  source: "",
-  minExperience: "",
-  maxExperience: "",
-  minMatchScore: "",
-  maxMatchScore: "",
+  status: "",
   sortBy: "match_score",
   sortDir: "desc",
 };
+
+const ALL_STATUSES_VALUE = "all";
 
 const SORT_OPTIONS: { value: CandidateSortField; label: string }[] = [
   { value: "match_score", label: "Match Score" },
@@ -76,6 +71,12 @@ export function Filters({ value, onChange }: FiltersProps) {
     onChange(cleared);
   }
 
+  function updateStatus(status: string) {
+    const updated = { ...draft, status: status === ALL_STATUSES_VALUE ? "" : status };
+    setDraft(updated);
+    onChange(updated);
+  }
+
   function updateSort(sortBy: CandidateSortField) {
     const updated = { ...draft, sortBy };
     setDraft(updated);
@@ -93,7 +94,7 @@ export function Filters({ value, onChange }: FiltersProps) {
 
   return (
     <div className="flex flex-col gap-4" data-testid="candidate-filters">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Input
           placeholder="Search by name"
           value={draft.name}
@@ -107,44 +108,33 @@ export function Filters({ value, onChange }: FiltersProps) {
           data-testid="filter-skill"
         />
         <Input
-          placeholder="Location"
-          value={draft.location}
-          onChange={(e) => updateDraft("location", e.target.value)}
-          data-testid="filter-location"
-        />
-        <Input
           placeholder="Company"
           value={draft.company}
           onChange={(e) => updateDraft("company", e.target.value)}
           data-testid="filter-company"
         />
         <Input
-          placeholder="Source"
-          value={draft.source}
-          onChange={(e) => updateDraft("source", e.target.value)}
-          data-testid="filter-source"
+          placeholder="Location"
+          value={draft.location}
+          onChange={(e) => updateDraft("location", e.target.value)}
+          data-testid="filter-location"
         />
-        <Input
-          type="number"
-          placeholder="Min experience (yrs)"
-          value={draft.minExperience}
-          onChange={(e) => updateDraft("minExperience", e.target.value)}
-          data-testid="filter-min-experience"
-        />
-        <Input
-          type="number"
-          placeholder="Max experience (yrs)"
-          value={draft.maxExperience}
-          onChange={(e) => updateDraft("maxExperience", e.target.value)}
-          data-testid="filter-max-experience"
-        />
-        <Input
-          type="number"
-          placeholder="Min match score"
-          value={draft.minMatchScore}
-          onChange={(e) => updateDraft("minMatchScore", e.target.value)}
-          data-testid="filter-min-match-score"
-        />
+        <Select
+          value={draft.status === "" ? ALL_STATUSES_VALUE : draft.status}
+          onValueChange={updateStatus}
+        >
+          <SelectTrigger data-testid="filter-status">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_STATUSES_VALUE}>All statuses</SelectItem>
+            {CANDIDATE_STATUSES.map((status) => (
+              <SelectItem key={status} value={status}>
+                {status}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -155,7 +145,7 @@ export function Filters({ value, onChange }: FiltersProps) {
           Clear
         </Button>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           <span className="text-sm text-muted-foreground">Sort by</span>
           <Select value={draft.sortBy} onValueChange={(v) => updateSort(v as CandidateSortField)}>
             <SelectTrigger className="w-[160px]" data-testid="filter-sort-field">

@@ -61,6 +61,7 @@ export default function NewJobPage() {
   const [company, setCompany] = useState("");
   const [employmentType, setEmploymentType] = useState("");
   const [workArrangement, setWorkArrangement] = useState("");
+  const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
 
   // Job description & file upload state
   const [mode, setMode] = useState<InputMode>("upload");
@@ -93,6 +94,22 @@ export default function NewJobPage() {
   // Success Modal state
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [candidatesFoundCount, setCandidatesFoundCount] = useState(0);
+
+  const jobDetailsErrors: Record<string, string> = {};
+  if (!title.trim()) jobDetailsErrors.title = "Job title is required.";
+  if (!company.trim()) jobDetailsErrors.company = "Company name is required.";
+  if (!employmentType) jobDetailsErrors.employmentType = "Employment type is required.";
+  if (!workArrangement) jobDetailsErrors.workArrangement = "Work arrangement is required.";
+  const isJobDetailsValid = Object.keys(jobDetailsErrors).length === 0;
+
+  function markAllFieldsTouched() {
+    setTouchedFields({
+      title: true,
+      company: true,
+      employmentType: true,
+      workArrangement: true,
+    });
+  }
 
   // File formatting helper
   function formatFileSize(bytes: number): string {
@@ -237,6 +254,16 @@ export default function NewJobPage() {
   // Unified automatic flow: generates queries, saves job, searches candidates, and scores
   async function handleGenerateAndFindCandidates() {
     if (!analysis) return;
+    if (isSearching) return; // guard against duplicate submissions
+
+    if (!isJobDetailsValid) {
+      markAllFieldsTouched();
+      setIsJobDetailsOpen(true);
+      const msg = "Please complete all required job details before continuing.";
+      setSearchError(msg);
+      toast.error(msg, "Missing Required Fields");
+      return;
+    }
 
     setSearchError(null);
     setIsSearching(true);
@@ -388,36 +415,60 @@ export default function NewJobPage() {
             <CardContent className="pt-6 flex flex-col gap-5 animate-in fade-in duration-200">
               <div className="flex flex-col gap-1.5">
                 <label htmlFor="job-title" className="text-xs font-semibold text-slate-700">
-                  Job Title
+                  Job Title <span className="text-red-600">*</span>
                 </label>
                 <Input
                   id="job-title"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
+                  onBlur={() => setTouchedFields((prev) => ({ ...prev, title: true }))}
                   placeholder="e.g. Senior React Developer"
                   className="bg-white"
+                  aria-invalid={touchedFields.title && !!jobDetailsErrors.title}
+                  data-testid="job-title-input"
                 />
+                {touchedFields.title && jobDetailsErrors.title && (
+                  <p role="alert" className="text-xs font-medium text-red-600">
+                    {jobDetailsErrors.title}
+                  </p>
+                )}
               </div>
 
               <div className="flex flex-col gap-1.5">
                 <label htmlFor="job-company" className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
                   <Building2 className="h-3.5 w-3.5 text-slate-400" />
-                  Company Name
+                  Company Name <span className="text-red-600">*</span>
                 </label>
                 <Input
                   id="job-company"
                   value={company}
                   onChange={(e) => setCompany(e.target.value)}
+                  onBlur={() => setTouchedFields((prev) => ({ ...prev, company: true }))}
                   placeholder="e.g. Acme Corp / Client Name"
                   className="bg-white"
+                  aria-invalid={touchedFields.company && !!jobDetailsErrors.company}
+                  data-testid="job-company-input"
                 />
+                {touchedFields.company && jobDetailsErrors.company && (
+                  <p role="alert" className="text-xs font-medium text-red-600">
+                    {jobDetailsErrors.company}
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-1.5">
-                  <span className="text-xs font-semibold text-slate-700">Employment Type</span>
-                  <Select value={employmentType} onValueChange={setEmploymentType}>
-                    <SelectTrigger className="bg-white">
+                  <span className="text-xs font-semibold text-slate-700">
+                    Employment Type <span className="text-red-600">*</span>
+                  </span>
+                  <Select
+                    value={employmentType}
+                    onValueChange={(value) => {
+                      setEmploymentType(value);
+                      setTouchedFields((prev) => ({ ...prev, employmentType: true }));
+                    }}
+                  >
+                    <SelectTrigger className="bg-white" data-testid="job-employment-type-trigger">
                       <SelectValue placeholder="Select type (e.g. Full-time)" />
                     </SelectTrigger>
                     <SelectContent>
@@ -428,12 +479,25 @@ export default function NewJobPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {touchedFields.employmentType && jobDetailsErrors.employmentType && (
+                    <p role="alert" className="text-xs font-medium text-red-600">
+                      {jobDetailsErrors.employmentType}
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <span className="text-xs font-semibold text-slate-700">Work Arrangement</span>
-                  <Select value={workArrangement} onValueChange={setWorkArrangement}>
-                    <SelectTrigger className="bg-white">
+                  <span className="text-xs font-semibold text-slate-700">
+                    Work Arrangement <span className="text-red-600">*</span>
+                  </span>
+                  <Select
+                    value={workArrangement}
+                    onValueChange={(value) => {
+                      setWorkArrangement(value);
+                      setTouchedFields((prev) => ({ ...prev, workArrangement: true }));
+                    }}
+                  >
+                    <SelectTrigger className="bg-white" data-testid="job-work-arrangement-trigger">
                       <SelectValue placeholder="Select arrangement (e.g. Remote)" />
                     </SelectTrigger>
                     <SelectContent>
@@ -444,6 +508,11 @@ export default function NewJobPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {touchedFields.workArrangement && jobDetailsErrors.workArrangement && (
+                    <p role="alert" className="text-xs font-medium text-red-600">
+                      {jobDetailsErrors.workArrangement}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -732,8 +801,9 @@ export default function NewJobPage() {
                     type="button"
                     size="lg"
                     onClick={handleGenerateAndFindCandidates}
-                    disabled={isSearching}
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow-lg shadow-indigo-600/30 shrink-0"
+                    disabled={isSearching || !isJobDetailsValid}
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow-lg shadow-indigo-600/30 shrink-0 disabled:opacity-60"
+                    data-testid="find-candidates-button"
                   >
                     {isSearching ? (
                       <>
@@ -748,6 +818,13 @@ export default function NewJobPage() {
                     )}
                   </Button>
                 </div>
+
+                {!isJobDetailsValid && (
+                  <p className="mt-3 text-xs text-amber-300">
+                    Complete all required job details (title, company, employment type, work
+                    arrangement) above to continue.
+                  </p>
+                )}
 
                 {/* Sourcing in progress live banner */}
                 {isSearching && (

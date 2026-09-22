@@ -13,6 +13,7 @@ function makeCandidate(
     experience_years: 5,
     skills: ["React", "TypeScript"],
     source: "mock",
+    status: "New",
     created_at: "2026-01-01T00:00:00Z",
     match: { match_score: 80 },
     ...overrides,
@@ -36,50 +37,37 @@ describe("filterCandidates", () => {
     expect(result).toHaveLength(1);
   });
 
-  it("filters by location, company, and source", () => {
+  it("filters by location and company", () => {
     const candidates = [
-      makeCandidate({ location: "Cairo, Egypt", company: "Acme", source: "mock" }),
-      makeCandidate({ location: "Giza, Egypt", company: "Acme", source: "mock" }),
+      makeCandidate({ location: "Cairo, Egypt", company: "Acme" }),
+      makeCandidate({ location: "Giza, Egypt", company: "Acme" }),
     ];
     expect(filterCandidates(candidates, { location: "cairo" })).toHaveLength(1);
     expect(filterCandidates(candidates, { company: "acme" })).toHaveLength(2);
-    expect(filterCandidates(candidates, { source: "MOCK" })).toHaveLength(2);
-    expect(filterCandidates(candidates, { source: "serpapi" })).toHaveLength(0);
   });
 
-  it("filters by experience range, excluding candidates with unknown experience", () => {
+  it("filters by status (case-insensitive, exact match)", () => {
     const candidates = [
-      makeCandidate({ experience_years: 3 }),
-      makeCandidate({ experience_years: 7 }),
-      makeCandidate({ experience_years: null }),
+      makeCandidate({ status: "New" }),
+      makeCandidate({ status: "Shortlisted" }),
     ];
-    expect(filterCandidates(candidates, { minExperience: 5 })).toHaveLength(1);
-    expect(filterCandidates(candidates, { maxExperience: 5 })).toHaveLength(1);
-    expect(filterCandidates(candidates, { minExperience: 0, maxExperience: 10 })).toHaveLength(2);
-  });
-
-  it("filters by match score range, excluding candidates with no match yet", () => {
-    const candidates = [
-      makeCandidate({ match: { match_score: 90 } }),
-      makeCandidate({ match: { match_score: 40 } }),
-      makeCandidate({ match: null }),
-    ];
-    expect(filterCandidates(candidates, { minMatchScore: 50 })).toHaveLength(1);
-    expect(filterCandidates(candidates, { maxMatchScore: 50 })).toHaveLength(1);
+    expect(filterCandidates(candidates, { status: "new" })).toHaveLength(1);
+    expect(filterCandidates(candidates, { status: "Shortlisted" })).toHaveLength(1);
+    expect(filterCandidates(candidates, { status: "Rejected" })).toHaveLength(0);
   });
 
   it("combines multiple filters as AND, not overriding each other", () => {
     const candidates = [
-      makeCandidate({ name: "Amina Hassan", location: "Cairo, Egypt", experience_years: 5 }),
-      makeCandidate({ name: "Amina Hassan", location: "Giza, Egypt", experience_years: 5 }),
-      makeCandidate({ name: "Omar", location: "Cairo, Egypt", experience_years: 5 }),
-      makeCandidate({ name: "Amina Hassan", location: "Cairo, Egypt", experience_years: 1 }),
+      makeCandidate({ name: "Amina Hassan", location: "Cairo, Egypt", status: "New" }),
+      makeCandidate({ name: "Amina Hassan", location: "Giza, Egypt", status: "New" }),
+      makeCandidate({ name: "Omar", location: "Cairo, Egypt", status: "New" }),
+      makeCandidate({ name: "Amina Hassan", location: "Cairo, Egypt", status: "Rejected" }),
     ];
     // Only the first candidate satisfies ALL three filters at once.
     const result = filterCandidates(candidates, {
       name: "amina",
       location: "cairo",
-      minExperience: 3,
+      status: "New",
     });
     expect(result).toHaveLength(1);
     expect(result[0]).toBe(candidates[0]);

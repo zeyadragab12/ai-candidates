@@ -6,6 +6,7 @@ export interface CandidateForFiltering {
   experience_years: number | null;
   skills: string[];
   source: string;
+  status: string;
   created_at: string;
   match: { match_score: number } | null;
 }
@@ -15,11 +16,7 @@ export interface CandidateFilters {
   skill?: string;
   location?: string;
   company?: string;
-  source?: string;
-  minExperience?: number;
-  maxExperience?: number;
-  minMatchScore?: number;
-  maxMatchScore?: number;
+  status?: string;
 }
 
 export type CandidateSortField =
@@ -73,38 +70,8 @@ export function filterCandidates<T extends CandidateForFiltering>(
       }
     }
 
-    if (filters.source) {
-      if (candidate.source.toLowerCase() !== filters.source.toLowerCase()) {
-        return false;
-      }
-    }
-
-    if (filters.minExperience !== undefined) {
-      if (
-        candidate.experience_years === null ||
-        candidate.experience_years < filters.minExperience
-      ) {
-        return false;
-      }
-    }
-
-    if (filters.maxExperience !== undefined) {
-      if (
-        candidate.experience_years === null ||
-        candidate.experience_years > filters.maxExperience
-      ) {
-        return false;
-      }
-    }
-
-    if (filters.minMatchScore !== undefined) {
-      if (!candidate.match || candidate.match.match_score < filters.minMatchScore) {
-        return false;
-      }
-    }
-
-    if (filters.maxMatchScore !== undefined) {
-      if (!candidate.match || candidate.match.match_score > filters.maxMatchScore) {
+    if (filters.status) {
+      if (candidate.status.toLowerCase() !== filters.status.toLowerCase()) {
         return false;
       }
     }

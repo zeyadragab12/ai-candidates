@@ -40,6 +40,7 @@ function mergeCandidate(
     current_company: existing.current_company ?? incoming.current_company,
     location: existing.location ?? incoming.location,
     profile_url: existing.profile_url ?? incoming.profile_url,
+    profile_image_url: existing.profile_image_url ?? incoming.profile_image_url,
     source: existing.source,
     source_url: existing.source_url,
     summary: existing.summary ?? incoming.summary,

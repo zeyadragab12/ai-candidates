@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, Trash2, Users } from "lucide-react";
+import { ExternalLink, Eye, Trash2, Users } from "lucide-react";
 import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -11,7 +11,9 @@ import {
   DEFAULT_CANDIDATE_FILTERS,
   type CandidateFilterState,
 } from "@/components/candidates/Filters";
+import { SkillsCell } from "@/components/candidates/SkillsCell";
 import { ExportButton } from "@/components/jobs/ExportButton";
+import { Avatar } from "@/components/ui/avatar";
 import { Badge, matchScoreTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyCell } from "@/components/ui/empty-cell";
@@ -24,14 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toast";
-
-const CANDIDATE_STATUSES = [
-  "New",
-  "Reviewed",
-  "Shortlisted",
-  "Rejected",
-  "Contacted",
-] as const;
+import { CANDIDATE_STATUSES } from "@/lib/candidates/statuses";
 
 const PAGE_SIZE = 10;
 
@@ -41,11 +36,7 @@ function buildFilterQueryString(filters: CandidateFilterState): string {
   if (filters.skill) params.set("skill", filters.skill);
   if (filters.location) params.set("location", filters.location);
   if (filters.company) params.set("company", filters.company);
-  if (filters.source) params.set("source", filters.source);
-  if (filters.minExperience) params.set("min_experience", filters.minExperience);
-  if (filters.maxExperience) params.set("max_experience", filters.maxExperience);
-  if (filters.minMatchScore) params.set("min_match_score", filters.minMatchScore);
-  if (filters.maxMatchScore) params.set("max_match_score", filters.maxMatchScore);
+  if (filters.status) params.set("status", filters.status);
   params.set("sort_by", filters.sortBy);
   params.set("sort_dir", filters.sortDir);
   return params.toString();
@@ -72,6 +63,7 @@ interface Candidate {
   skills: string[];
   source: string;
   profile_url: string | null;
+  profile_image_url: string | null;
   status: string;
   created_at: string;
   match: { match_score: number } | null;
@@ -375,16 +367,21 @@ function CandidatesTable({ jobId }: { jobId: string }) {
                   <td className="p-3">
                     <Link
                       href={`/candidates/${candidate.id}?jobId=${jobId}`}
-                      className="font-medium text-primary underline underline-offset-2"
+                      className="flex items-center gap-2.5 font-medium text-foreground no-underline transition-colors hover:text-primary focus-visible:text-primary"
                     >
+                      <Avatar
+                        src={candidate.profile_image_url}
+                        alt={candidate.name ?? "Unnamed candidate"}
+                        className="h-8 w-8"
+                      />
                       {candidate.name ?? "Unnamed candidate"}
                     </Link>
                   </td>
                   <td className="p-3 text-muted-foreground">
                     {candidate.location ?? <EmptyCell />}
                   </td>
-                  <td className="p-3 text-muted-foreground">
-                    {candidate.skills.length > 0 ? candidate.skills.join(", ") : <EmptyCell />}
+                  <td className="p-3">
+                    <SkillsCell skills={candidate.skills} />
                   </td>
                   <td className="p-3">
                     {candidate.match ? (
@@ -453,17 +450,32 @@ function CandidatesTable({ jobId }: { jobId: string }) {
                         </Button>
                       </div>
                     ) : (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="text-muted-foreground hover:text-destructive"
-                        onClick={() => setPendingDeleteId(candidate.id)}
-                        aria-label={`Delete ${candidate.name ?? "candidate"}`}
-                        data-testid="delete-candidate-button"
-                      >
-                        <Trash2 className="h-4 w-4" aria-hidden="true" />
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          asChild
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="text-muted-foreground hover:text-primary"
+                          aria-label={`View ${candidate.name ?? "candidate"}`}
+                          data-testid="view-candidate-button"
+                        >
+                          <Link href={`/candidates/${candidate.id}?jobId=${jobId}`}>
+                            <Eye className="h-4 w-4" aria-hidden="true" />
+                          </Link>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="text-muted-foreground hover:text-destructive"
+                          onClick={() => setPendingDeleteId(candidate.id)}
+                          aria-label={`Delete ${candidate.name ?? "candidate"}`}
+                          data-testid="delete-candidate-button"
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden="true" />
+                        </Button>
+                      </div>
                     )}
                   </td>
                 </tr>

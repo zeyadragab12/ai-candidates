@@ -6,6 +6,7 @@ export const normalizedCandidateSchema = z.object({
   current_company: z.string().nullable(),
   location: z.string().nullable(),
   profile_url: z.string().nullable(),
+  profile_image_url: z.string().nullable(),
   source: z.string(),
   source_url: z.string(),
   summary: z.string().nullable(),

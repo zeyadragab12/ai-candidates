@@ -65,6 +65,7 @@ interface HarvestApiLinkedInItem {
   currentPosition?: { companyName?: string }[];
   skills?: { name?: string }[];
   experience?: { duration?: string }[];
+  photo?: string;
 }
 
 /**
@@ -90,6 +91,7 @@ export interface EnrichedLinkedInProfile {
   about?: string;
   skills?: string[];
   experienceYears?: number;
+  profileImageUrl?: string;
 }
 
 /**
@@ -177,6 +179,7 @@ function mapItem(item: HarvestApiLinkedInItem): EnrichedLinkedInProfile | null {
     about: item.about || undefined,
     skills: mapSkills(item.skills),
     experienceYears: estimateExperienceYears(item.experience),
+    profileImageUrl: item.photo || undefined,
   };
 }
 

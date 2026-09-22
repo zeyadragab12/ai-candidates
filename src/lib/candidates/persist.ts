@@ -16,6 +16,7 @@ interface ExistingCandidateRow extends CandidateRow {
   summary: string | null;
   skills: string[] | null;
   experience_years: number | null;
+  profile_image_url: string | null;
 }
 
 /**
@@ -47,6 +48,9 @@ function buildEnrichmentUpdate(
   if (existing.experience_years === null && incoming.experience_years !== null) {
     update.experience_years = incoming.experience_years;
   }
+  if (existing.profile_image_url === null && incoming.profile_image_url !== null) {
+    update.profile_image_url = incoming.profile_image_url;
+  }
 
   const mergedSkills = Array.from(
     new Set([...(existing.skills ?? []), ...incoming.skills]),
@@ -66,6 +70,7 @@ function toRow(candidate: NormalizedCandidate, userId: string, rawData: unknown)
     company: candidate.current_company?.trim() ?? null,
     location: candidate.location,
     profile_url: candidate.profile_url,
+    profile_image_url: candidate.profile_image_url,
     source: candidate.source,
     source_url: candidate.source_url,
     summary: candidate.summary,
@@ -83,7 +88,9 @@ async function findExisting(
 ): Promise<ExistingCandidateRow | null> {
   let query = supabase
     .from("candidates")
-    .select("id, headline, company, location, summary, skills, experience_years")
+    .select(
+      "id, headline, company, location, summary, skills, experience_years, profile_image_url",
+    )
     .eq("user_id", userId);
 
   if (candidate.profile_url) {

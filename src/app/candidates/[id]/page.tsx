@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 
 import { DashboardNav } from "@/components/dashboard/nav";
+import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { matchScoreTone } from "@/components/ui/badge";
@@ -17,15 +18,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toast";
+import { CANDIDATE_STATUSES } from "@/lib/candidates/statuses";
 import { cn } from "@/lib/utils";
-
-const CANDIDATE_STATUSES = [
-  "New",
-  "Reviewed",
-  "Shortlisted",
-  "Rejected",
-  "Contacted",
-] as const;
 
 interface Match {
   match_score: number;
@@ -48,6 +42,7 @@ interface Candidate {
   company: string | null;
   location: string | null;
   profile_url: string | null;
+  profile_image_url: string | null;
   source: string;
   summary: string | null;
   skills: string[];
@@ -193,9 +188,16 @@ function CandidateProfileContent() {
       <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6 sm:py-8">
         <Card>
           <CardHeader>
-            <CardTitle className="font-display text-2xl">
-              {candidate.name ?? "Unnamed candidate"}
-            </CardTitle>
+            <div className="flex items-center gap-4">
+              <Avatar
+                src={candidate.profile_image_url}
+                alt={candidate.name ?? "Unnamed candidate"}
+                className="h-16 w-16"
+              />
+              <CardTitle className="font-display text-2xl">
+                {candidate.name ?? "Unnamed candidate"}
+              </CardTitle>
+            </div>
           </CardHeader>
           <CardContent className="flex flex-col gap-2 text-sm">
             {candidate.headline && (
