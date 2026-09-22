@@ -1,6 +1,5 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -21,10 +20,7 @@ export function DashboardNav() {
     <header className="sticky top-0 z-10 border-b border-border/80 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-3 sm:px-6">
         <div className="flex flex-wrap items-center gap-6">
-          <Link href="/dashboard" className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-indigo-700 text-primary-foreground shadow-glow">
-              <Sparkles className="h-4 w-4" aria-hidden="true" />
-            </span>
+          <Link href="/dashboard" className="flex items-center">
             <span className="font-display text-base font-semibold tracking-tight text-foreground">
               AI Candidate
             </span>
