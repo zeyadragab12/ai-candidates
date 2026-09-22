@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { env } from "@/lib/env";
 import { requireUser } from "@/lib/api/requireUser";
 import { getSearchProvider } from "@/lib/search";
+import { getEnrichmentProvider } from "@/lib/enrichment";
 import { normalizeCandidate } from "@/lib/candidates/normalize";
 import { dedupeCandidates, getCandidateIdentityKey } from "@/lib/candidates/dedupe";
 import { persistCandidates } from "@/lib/candidates/persist";
@@ -71,7 +72,7 @@ async function processSearchRun(
   }
 
   const searchProvider = getSearchProvider();
-  const allResults: CandidateSearchResult[] = [];
+  let allResults: CandidateSearchResult[] = [];
   const queryErrors: string[] = [];
 
   for (const query of queries) {
@@ -86,6 +87,66 @@ async function processSearchRun(
       queryErrors.push(
         error instanceof Error ? error.message : "Unknown search error",
       );
+    }
+  }
+
+  // Enrich LinkedIn profile URLs SerpApi already discovered via Apify's
+  // LinkedIn Profile Scraper, filling in real profile data (headline,
+  // company, location, skills, tenure) before OpenAI ever sees the
+  // candidate. Apify is never used for discovery, only enrichment — and it's
+  // entirely optional (getEnrichmentProvider() returns null when unconfigured),
+  // so a search run behaves exactly as before when it's off. A failure here
+  // is logged and surfaced in search_runs.error but never aborts the run:
+  // candidates still get persisted with SerpApi-only data, matching how a
+  // failed search query is handled above.
+  const enrichmentProvider = getEnrichmentProvider();
+  if (enrichmentProvider) {
+    const linkedInProfileUrls = Array.from(
+      new Set(
+        allResults
+          .map((result) => result.profile_url)
+          .filter((url): url is string => !!url && /linkedin\.com\/in\//i.test(url)),
+      ),
+    );
+
+    if (linkedInProfileUrls.length > 0) {
+      try {
+        const enrichedByUrl = await enrichmentProvider.enrichProfiles(linkedInProfileUrls);
+        allResults = allResults.map((result) => {
+          const enrichment = result.profile_url
+            ? enrichedByUrl.get(result.profile_url)
+            : undefined;
+          if (!enrichment) return result;
+
+          return {
+            ...result,
+            name: enrichment.name ?? result.name,
+            title: enrichment.headline ?? result.title,
+            company: enrichment.currentCompany ?? result.company,
+            location: enrichment.location ?? result.location,
+            snippet: enrichment.about ?? result.snippet,
+            skills: enrichment.skills?.length ? enrichment.skills : result.skills,
+            experience_years: enrichment.experienceYears ?? result.experience_years,
+          };
+        });
+        logger.info("LinkedIn enrichment complete", {
+          jobId,
+          runId,
+          profilesRequested: linkedInProfileUrls.length,
+          profilesEnriched: enrichedByUrl.size,
+        });
+      } catch (error) {
+        logger.warn("LinkedIn enrichment failed; continuing with SerpApi-only data", {
+          jobId,
+          runId,
+          error,
+        });
+        queryErrors.push(
+          error instanceof Error
+            ? `LinkedIn enrichment: ${error.message}`
+            : "LinkedIn enrichment failed",
+        );
+      }
     }
   }
 

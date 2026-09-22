@@ -19,6 +19,8 @@ const envSchema = z.object({
   OPENAI_MODEL: z.string().optional(),
   SERPAPI_API_KEY: z.string().optional(),
   SERPER_API_KEY: z.string().optional(),
+  APIFY_API_TOKEN: z.string().optional(),
+  APIFY_ACTOR_ID: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

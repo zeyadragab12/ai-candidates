@@ -62,6 +62,16 @@ describe("normalizeCandidate", () => {
     expect(normalized.experience_years).toBeNull();
   });
 
+  it("passes through experience_years when a structured source (e.g. Apify enrichment) supplied one", () => {
+    const normalized = normalizeCandidate({
+      source: "serpapi",
+      source_url: "https://linkedin.com/in/amina-hassan",
+      experience_years: 4.5,
+    });
+
+    expect(normalized.experience_years).toBe(4.5);
+  });
+
   it("produces schema-valid output for every fixture returned by MockSearchProvider", async () => {
     const provider = new MockSearchProvider();
     const rawResults = await provider.searchCandidates({ query: "react developer" });

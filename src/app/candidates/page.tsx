@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, Users } from "lucide-react";
+import { ExternalLink, Trash2, Users } from "lucide-react";
 import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -12,6 +12,7 @@ import {
   type CandidateFilterState,
 } from "@/components/candidates/Filters";
 import { ExportButton } from "@/components/jobs/ExportButton";
+import { Badge, matchScoreTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyCell } from "@/components/ui/empty-cell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -66,13 +67,27 @@ interface Candidate {
   id: string;
   name: string | null;
   company: string | null;
-  location: string | "null";
+  location: string | null;
   experience_years: number | null;
   skills: string[];
   source: string;
   profile_url: string | null;
   status: string;
+  created_at: string;
   match: { match_score: number } | null;
+}
+
+function formatDateTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return `${date.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  })} · ${date.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  })}`;
 }
 
 function JobPicker() {
@@ -139,6 +154,10 @@ function CandidatesTable({ jobId }: { jobId: string }) {
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
 
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   useEffect(() => {
     const controller = new AbortController();
     setIsLoading(true);
@@ -197,6 +216,30 @@ function CandidatesTable({ jobId }: { jobId: string }) {
       toast.error("Failed to update status.");
     } finally {
       setUpdatingStatusId(null);
+    }
+  }
+
+  async function handleDeleteCandidate(candidateId: string) {
+    setDeleteError(null);
+    setDeletingId(candidateId);
+    try {
+      const res = await fetch(`/api/candidates/${candidateId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) {
+        const msg = data.error ?? "Failed to delete candidate.";
+        setDeleteError(msg);
+        toast.error(msg, "Delete Failed");
+        return;
+      }
+      setCandidates((prev) => prev.filter((candidate) => candidate.id !== candidateId));
+      setTotal((prev) => Math.max(0, prev - 1));
+      toast.success("Candidate removed from this job.", "Candidate Deleted");
+    } catch {
+      setDeleteError("Failed to delete candidate.");
+      toast.error("Failed to delete candidate.");
+    } finally {
+      setDeletingId(null);
+      setPendingDeleteId(null);
     }
   }
 
@@ -290,6 +333,12 @@ function CandidatesTable({ jobId }: { jobId: string }) {
         </p>
       )}
 
+      {deleteError && (
+        <p role="alert" className="text-sm text-destructive">
+          {deleteError}
+        </p>
+      )}
+
       {candidates.length === 0 ? (
         <div className="flex flex-col items-center gap-3 py-10 text-center">
           <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent text-accent-foreground">
@@ -299,22 +348,30 @@ function CandidatesTable({ jobId }: { jobId: string }) {
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border">
-          <table className="w-full min-w-[800px] text-sm" data-testid="candidates-table">
+          <table className="w-full min-w-[1080px] text-sm" data-testid="candidates-table">
             <thead>
               <tr className="border-b border-border bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <th className="w-12 p-3 font-medium text-right">#</th>
                 <th className="p-3 font-medium">Name</th>
+                <th className="p-3 font-medium">Location</th>
                 <th className="p-3 font-medium">Skills</th>
+                <th className="p-3 font-medium">Match</th>
+                <th className="p-3 font-medium">Date Added</th>
                 <th className="p-3 font-medium">Status</th>
                 <th className="p-3 font-medium">Profile</th>
+                <th className="p-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {candidates.map((candidate) => (
+              {candidates.map((candidate, index) => (
                 <tr
                   key={candidate.id}
-                  className="border-b border-border/70 last:border-0 hover:bg-accent/40"
+                  className="border-b border-border/70 last:border-0 hover:bg-accent/40 even:bg-muted/20"
                   data-testid="candidate-row"
                 >
+                  <td className="p-3 text-right tabular-nums text-muted-foreground">
+                    {(page - 1) * PAGE_SIZE + index + 1}
+                  </td>
                   <td className="p-3">
                     <Link
                       href={`/candidates/${candidate.id}?jobId=${jobId}`}
@@ -324,7 +381,22 @@ function CandidatesTable({ jobId }: { jobId: string }) {
                     </Link>
                   </td>
                   <td className="p-3 text-muted-foreground">
+                    {candidate.location ?? <EmptyCell />}
+                  </td>
+                  <td className="p-3 text-muted-foreground">
                     {candidate.skills.length > 0 ? candidate.skills.join(", ") : <EmptyCell />}
+                  </td>
+                  <td className="p-3">
+                    {candidate.match ? (
+                      <Badge tone={matchScoreTone(candidate.match.match_score)}>
+                        {candidate.match.match_score}%
+                      </Badge>
+                    ) : (
+                      <EmptyCell />
+                    )}
+                  </td>
+                  <td className="p-3 whitespace-nowrap text-muted-foreground">
+                    {formatDateTime(candidate.created_at)}
                   </td>
                   <td className="p-3">
                     <Select
@@ -354,6 +426,44 @@ function CandidatesTable({ jobId }: { jobId: string }) {
                       </Button>
                     ) : (
                       <EmptyCell />
+                    )}
+                  </td>
+                  <td className="p-3 text-right">
+                    {pendingDeleteId === candidate.id ? (
+                      <div className="flex items-center justify-end gap-1.5">
+                        <span className="text-xs text-muted-foreground">Delete?</span>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          disabled={deletingId === candidate.id}
+                          onClick={() => handleDeleteCandidate(candidate.id)}
+                          data-testid="confirm-delete-candidate"
+                        >
+                          {deletingId === candidate.id ? "Deleting..." : "Confirm"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={deletingId === candidate.id}
+                          onClick={() => setPendingDeleteId(null)}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => setPendingDeleteId(candidate.id)}
+                        aria-label={`Delete ${candidate.name ?? "candidate"}`}
+                        data-testid="delete-candidate-button"
+                      >
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      </Button>
                     )}
                   </td>
                 </tr>

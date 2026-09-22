@@ -15,4 +15,7 @@ export interface CandidateSearchResult {
   profile_url?: string;
   snippet?: string;
   skills?: string[];
+  /** Only ever set from a structured source (e.g. an Apify LinkedIn profile
+   * scrape's total tenure) — never guessed from free text. */
+  experience_years?: number;
 }
