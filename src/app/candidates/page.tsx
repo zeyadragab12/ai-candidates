@@ -643,6 +643,23 @@ function CandidatesTable({ jobId }: { jobId: string }) {
 function CandidatesPageContent() {
   const searchParams = useSearchParams();
   const jobId = searchParams.get("jobId");
+  const [jobTitle, setJobTitle] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!jobId) {
+      setJobTitle(null);
+      return;
+    }
+    const controller = new AbortController();
+    setJobTitle(null);
+    fetch(`/api/jobs/${jobId}`, { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => setJobTitle(data?.title ?? null))
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+      });
+    return () => controller.abort();
+  }, [jobId]);
 
   return (
     <main className="min-h-screen">
@@ -669,7 +686,9 @@ function CandidatesPageContent() {
         ) : (
           <Card>
             <CardHeader>
-              <CardTitle className="font-display text-xl">Candidates for this job</CardTitle>
+              <CardTitle className="font-display text-xl">
+                Candidates for {jobTitle ?? "this job"}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <CandidatesTable jobId={jobId} />
