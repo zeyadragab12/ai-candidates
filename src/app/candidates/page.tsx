@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, Eye, Trash2, Users } from "lucide-react";
+import { Briefcase, ExternalLink, Eye, Trash2, Users } from "lucide-react";
 import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -52,6 +52,9 @@ function buildQueryString(filters: CandidateFilterState, page: number): string {
 interface Job {
   id: string;
   title: string;
+  location: string | null;
+  employment_type: string | null;
+  created_at: string;
 }
 
 interface Candidate {
@@ -85,40 +88,162 @@ function formatDateTime(value: string): string {
 function JobPicker() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
+    setIsLoading(true);
+    setLoadError(null);
     fetch("/api/jobs")
-      .then((res) => res.json())
-      .then((data) => setJobs(data.jobs ?? []))
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) {
+          setLoadError(data.error ?? "Failed to load jobs.");
+          return;
+        }
+        setJobs(data.jobs ?? []);
+      })
+      .catch(() => setLoadError("Failed to load jobs."))
       .finally(() => setIsLoading(false));
   }, []);
+
+  async function handleDeleteJob(jobId: string) {
+    setDeleteError(null);
+    setDeletingId(jobId);
+    try {
+      const res = await fetch(`/api/jobs/${jobId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) {
+        const msg = data.error ?? "Failed to delete job.";
+        setDeleteError(msg);
+        toast.error(msg, "Delete Failed");
+        return;
+      }
+      setJobs((prev) => prev.filter((job) => job.id !== jobId));
+      toast.success("Job and its listing removed.", "Job Deleted");
+    } catch {
+      setDeleteError("Failed to delete job.");
+      toast.error("Failed to delete job.");
+    } finally {
+      setDeletingId(null);
+      setPendingDeleteId(null);
+    }
+  }
 
   if (isLoading) {
     return <p className="text-sm text-muted-foreground">Loading jobs...</p>;
   }
 
-  if (jobs.length === 0) {
+  if (loadError) {
     return (
-      <p className="text-sm text-muted-foreground">
-        No jobs yet.{" "}
-        <Link href="/jobs/new" className="underline">
-          Create a job
-        </Link>{" "}
-        to start finding candidates.
+      <p role="alert" className="text-sm text-destructive">
+        {loadError}
       </p>
     );
   }
 
+  if (jobs.length === 0) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-10 text-center">
+        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent text-accent-foreground">
+          <Briefcase className="h-6 w-6" aria-hidden="true" />
+        </span>
+        <p className="text-sm text-muted-foreground">
+          No jobs yet.{" "}
+          <Link href="/jobs/new" className="font-medium text-primary underline">
+            Create a job
+          </Link>{" "}
+          to start finding candidates.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3" data-testid="job-picker">
+      {deleteError && (
+        <p role="alert" className="text-sm text-destructive">
+          {deleteError}
+        </p>
+      )}
       {jobs.map((job) => (
-        <Link
+        <div
           key={job.id}
-          href={`/candidates?jobId=${job.id}`}
-          className="rounded-lg border border-border p-3 text-sm font-medium transition-colors hover:border-primary/40 hover:bg-accent/50"
+          className="flex flex-col gap-3 rounded-lg border border-border p-4 transition-colors hover:border-primary/40 hover:bg-accent/30 sm:flex-row sm:items-center sm:justify-between"
+          data-testid="job-picker-row"
         >
-          {job.title}
-        </Link>
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">
+              <Briefcase className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <p className="truncate font-medium text-foreground">{job.title}</p>
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                <span>{formatDateTime(job.created_at)}</span>
+                {job.location && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span>{job.location}</span>
+                  </>
+                )}
+                {job.employment_type && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span>{job.employment_type}</span>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {pendingDeleteId === job.id ? (
+            <div className="flex shrink-0 items-center justify-end gap-1.5">
+              <span className="text-xs text-muted-foreground">Delete this job?</span>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                disabled={deletingId === job.id}
+                onClick={() => handleDeleteJob(job.id)}
+                data-testid="confirm-delete-job"
+              >
+                {deletingId === job.id ? "Deleting..." : "Confirm"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={deletingId === job.id}
+                onClick={() => setPendingDeleteId(null)}
+              >
+                Cancel
+              </Button>
+            </div>
+          ) : (
+            <div className="flex shrink-0 items-center gap-2 self-end sm:self-auto">
+              <Button asChild type="button" variant="outline" size="sm" className="gap-1.5">
+                <Link href={`/candidates?jobId=${job.id}`}>
+                  <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+                  View
+                </Link>
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-destructive"
+                onClick={() => setPendingDeleteId(job.id)}
+                aria-label={`Delete ${job.title}`}
+                data-testid="delete-job-button"
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </div>
+          )}
+        </div>
       ))}
     </div>
   );
