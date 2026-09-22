@@ -183,4 +183,57 @@ describe("ApifyLinkedInProvider", () => {
     ).rejects.toThrow(EnrichmentProviderError);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it("splits more than 10 URLs into multiple <=10-URL runs (free-tier per-run item cap)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const urls = Array.from({ length: 23 }, (_, i) => `https://linkedin.com/in/person-${i}`);
+    const provider = new ApifyLinkedInProvider("test-token", "some-actor");
+    await provider.enrichProfiles(urls);
+
+    expect(fetchMock).toHaveBeenCalledTimes(3); // 10 + 10 + 3
+    const bodies = fetchMock.mock.calls.map((call) => JSON.parse(call[1].body).queries.length);
+    expect(bodies).toEqual([10, 10, 3]);
+  });
+
+  it("treats the actor's free-tier-cap error item as a real failure, not '0 profiles found'", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [
+        {
+          error:
+            "Free users are limited to 10 items per run. Please upgrade to a paid plan to scrape more items.",
+        },
+      ],
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const urls = Array.from({ length: 23 }, (_, i) => `https://linkedin.com/in/person-${i}`);
+    const provider = new ApifyLinkedInProvider("test-token", "some-actor");
+    await expect(provider.enrichProfiles(urls)).rejects.toThrow(EnrichmentProviderError);
+  });
+
+  it("returns the profiles that did succeed when only some chunks fail", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [
+          { linkedinUrl: "https://www.linkedin.com/in/amina-hassan", publicIdentifier: "amina-hassan" },
+        ],
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [{ error: "Free users are limited to 10 items per run." }],
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const urls = Array.from({ length: 15 }, (_, i) => `https://linkedin.com/in/person-${i}`);
+    const provider = new ApifyLinkedInProvider("test-token", "some-actor");
+    const result = await provider.enrichProfiles(urls);
+
+    expect(result.size).toBe(1);
+    expect(result.has("amina-hassan")).toBe(true);
+  });
 });

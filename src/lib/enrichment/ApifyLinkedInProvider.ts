@@ -19,6 +19,15 @@ const RETRY_OPTIONS = {
 // ($10 per 1k) for matching, so we deliberately never request it.
 const PROFILE_SCRAPER_MODE = "Profile details no email ($4 per 1k)";
 
+// A free-tier Apify account caps this actor at 10 dataset items PER RUN —
+// confirmed live: a single run given 23 URLs returned one dataset item,
+// `{"error": "Free users are limited to 10 items per run. Please upgrade to
+// a paid plan to scrape more items."}`, instead of 23 results or an HTTP
+// error. Splitting into multiple runs of <=10 URLs each keeps every run
+// under that cap regardless of account tier (a paid account just processes
+// each chunk normally).
+const MAX_PROFILES_PER_RUN = 10;
+
 export class EnrichmentProviderError extends Error {
   constructor(provider: string, cause?: unknown) {
     super(`Enrichment provider "${provider}" failed to return results.`);
@@ -127,6 +136,32 @@ function mapSkills(skills: HarvestApiLinkedInItem["skills"]): string[] | undefin
   return names.length > 0 ? names : undefined;
 }
 
+/**
+ * The actor doesn't always fail a run with a non-2xx status when something
+ * goes wrong (e.g. exceeding the free-tier item cap) — it can return 201
+ * with a single dataset item shaped like `{ error: "..." }` instead of
+ * profile data. Detected by the presence of `error` and absence of the
+ * fields every real profile item has, so a genuine failure is never mistaken
+ * for "0 profiles found" and silently swallowed.
+ */
+interface HarvestApiErrorItem {
+  error: string;
+}
+
+type HarvestApiDatasetItem = HarvestApiLinkedInItem | HarvestApiErrorItem;
+
+function isErrorItem(item: HarvestApiDatasetItem): item is HarvestApiErrorItem {
+  return typeof (item as HarvestApiErrorItem).error === "string" && !("linkedinUrl" in item);
+}
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
 function mapItem(item: HarvestApiLinkedInItem): EnrichedLinkedInProfile | null {
   const profileUrl = item.linkedinUrl;
   if (!profileUrl) return null;
@@ -170,12 +205,56 @@ export class ApifyLinkedInProvider {
   }
 
   /**
+   * Runs the actor once for a single chunk of <=MAX_PROFILES_PER_RUN URLs
+   * and returns its raw dataset items.
+   */
+  private async runChunk(profileUrls: string[]): Promise<HarvestApiDatasetItem[]> {
+    const url = new URL(
+      `${APIFY_API_BASE}/acts/${encodeURIComponent(this.actorId)}/run-sync-get-dataset-items`,
+    );
+    url.searchParams.set("token", this.apiToken);
+
+    return withRetry(
+      async () => {
+        const response = await fetch(url.toString(), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            queries: profileUrls,
+            profileScraperMode: PROFILE_SCRAPER_MODE,
+          }),
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        });
+        if (!response.ok) {
+          throw new ApifyHttpError(response.status, await response.text());
+        }
+        return (await response.json()) as HarvestApiDatasetItem[];
+      },
+      {
+        ...RETRY_OPTIONS,
+        // A network-level failure (fetch itself throwing, e.g. DNS/timeout)
+        // is just as transient as a 429/5xx, so it's retried too.
+        isRetryable: (error) =>
+          !(error instanceof ApifyHttpError) || isRetryableStatus(error.status),
+      },
+    );
+  }
+
+  /**
    * Returns a map keyed by extractLinkedInSlug() of each profile URL (NOT
    * the raw URL string — see extractLinkedInSlug's doc comment), so callers
    * can merge enrichment results back onto the original candidate by
    * running the same slug extraction over their own URL. URLs Apify
    * couldn't resolve (private/removed profiles, etc.) are simply absent
    * from the map — never a fabricated empty entry.
+   *
+   * Requests are split into chunks of at most MAX_PROFILES_PER_RUN (one
+   * actor run each, sequentially — not parallel, to stay well under Apify's
+   * concurrency limits on a free-tier account). One chunk failing (network
+   * error, or the actor returning its `{error: "..."}` item shape) doesn't
+   * abort the others; it's only surfaced as a thrown EnrichmentProviderError
+   * if EVERY chunk failed and nothing was enriched at all, so a single bad
+   * chunk degrades gracefully instead of losing an entire batch's real data.
    */
   async enrichProfiles(
     profileUrls: string[],
@@ -183,46 +262,31 @@ export class ApifyLinkedInProvider {
     const result = new Map<string, EnrichedLinkedInProfile>();
     if (profileUrls.length === 0) return result;
 
-    const url = new URL(
-      `${APIFY_API_BASE}/acts/${encodeURIComponent(this.actorId)}/run-sync-get-dataset-items`,
-    );
-    url.searchParams.set("token", this.apiToken);
+    let lastError: unknown;
 
-    let items: HarvestApiLinkedInItem[];
-    try {
-      items = await withRetry(
-        async () => {
-          const response = await fetch(url.toString(), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              queries: profileUrls,
-              profileScraperMode: PROFILE_SCRAPER_MODE,
-            }),
-            signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-          });
-          if (!response.ok) {
-            throw new ApifyHttpError(response.status, await response.text());
-          }
-          return (await response.json()) as HarvestApiLinkedInItem[];
-        },
-        {
-          ...RETRY_OPTIONS,
-          // A network-level failure (fetch itself throwing, e.g. DNS/timeout)
-          // is just as transient as a 429/5xx, so it's retried too.
-          isRetryable: (error) =>
-            !(error instanceof ApifyHttpError) || isRetryableStatus(error.status),
-        },
-      );
-    } catch (error) {
-      throw new EnrichmentProviderError("apify", error);
+    for (const urlChunk of chunk(profileUrls, MAX_PROFILES_PER_RUN)) {
+      let items: HarvestApiDatasetItem[];
+      try {
+        items = await this.runChunk(urlChunk);
+      } catch (error) {
+        lastError = error;
+        continue;
+      }
+
+      for (const item of items) {
+        if (isErrorItem(item)) {
+          lastError = new Error(item.error);
+          continue;
+        }
+        const mapped = mapItem(item);
+        if (!mapped) continue;
+        const key = item.publicIdentifier?.toLowerCase() || extractLinkedInSlug(mapped.profileUrl);
+        if (key) result.set(key, mapped);
+      }
     }
 
-    for (const item of items) {
-      const mapped = mapItem(item);
-      if (!mapped) continue;
-      const key = item.publicIdentifier?.toLowerCase() || extractLinkedInSlug(mapped.profileUrl);
-      if (key) result.set(key, mapped);
+    if (result.size === 0 && lastError) {
+      throw new EnrichmentProviderError("apify", lastError);
     }
 
     return result;
