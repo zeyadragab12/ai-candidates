@@ -45,6 +45,7 @@ class ApifyHttpError extends Error {
  */
 interface HarvestApiLinkedInItem {
   linkedinUrl?: string;
+  publicIdentifier?: string;
   firstName?: string;
   lastName?: string;
   headline?: string;
@@ -55,6 +56,20 @@ interface HarvestApiLinkedInItem {
   currentPosition?: { companyName?: string }[];
   skills?: { name?: string }[];
   experience?: { duration?: string }[];
+}
+
+/**
+ * Extracts the `/in/<slug>` identifier LinkedIn uses to identify a profile,
+ * regardless of protocol, country subdomain (SerpApi commonly returns
+ * eg.linkedin.com, sa.linkedin.com, etc. for non-US profiles — confirmed
+ * against real search results), trailing slash, or query string. This is
+ * the only reliable join key between a SerpApi result and Apify's dataset
+ * item: Apify always canonicalizes linkedinUrl to www.linkedin.com, so
+ * matching on the raw URL string silently drops every non-www result.
+ */
+export function extractLinkedInSlug(url: string): string | null {
+  const match = url.match(/linkedin\.com\/in\/([^/?#]+)/i);
+  return match?.[1] ? decodeURIComponent(match[1]).toLowerCase() : null;
 }
 
 export interface EnrichedLinkedInProfile {
@@ -155,10 +170,12 @@ export class ApifyLinkedInProvider {
   }
 
   /**
-   * Returns a map keyed by the profile URL Apify was given, so callers can
-   * merge enrichment results back onto the original candidate they came
-   * from. URLs Apify couldn't resolve (private/removed profiles, etc.) are
-   * simply absent from the map — never a fabricated empty entry.
+   * Returns a map keyed by extractLinkedInSlug() of each profile URL (NOT
+   * the raw URL string — see extractLinkedInSlug's doc comment), so callers
+   * can merge enrichment results back onto the original candidate by
+   * running the same slug extraction over their own URL. URLs Apify
+   * couldn't resolve (private/removed profiles, etc.) are simply absent
+   * from the map — never a fabricated empty entry.
    */
   async enrichProfiles(
     profileUrls: string[],
@@ -203,7 +220,9 @@ export class ApifyLinkedInProvider {
 
     for (const item of items) {
       const mapped = mapItem(item);
-      if (mapped) result.set(mapped.profileUrl, mapped);
+      if (!mapped) continue;
+      const key = item.publicIdentifier?.toLowerCase() || extractLinkedInSlug(mapped.profileUrl);
+      if (key) result.set(key, mapped);
     }
 
     return result;

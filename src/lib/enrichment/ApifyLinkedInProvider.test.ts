@@ -1,6 +1,24 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ApifyLinkedInProvider, EnrichmentProviderError } from "./ApifyLinkedInProvider";
+import {
+  ApifyLinkedInProvider,
+  EnrichmentProviderError,
+  extractLinkedInSlug,
+} from "./ApifyLinkedInProvider";
+
+describe("extractLinkedInSlug", () => {
+  it("extracts the slug regardless of country subdomain, protocol, or trailing slash", () => {
+    expect(extractLinkedInSlug("https://eg.linkedin.com/in/amina-hassan/")).toBe("amina-hassan");
+    expect(extractLinkedInSlug("https://www.linkedin.com/in/amina-hassan")).toBe("amina-hassan");
+    expect(extractLinkedInSlug("http://sa.linkedin.com/in/Amina-Hassan?trk=x")).toBe(
+      "amina-hassan",
+    );
+  });
+
+  it("returns null for a URL with no /in/ segment", () => {
+    expect(extractLinkedInSlug("https://linkedin.com/company/nile-software")).toBeNull();
+  });
+});
 
 describe("ApifyLinkedInProvider", () => {
   afterEach(() => {
@@ -54,12 +72,13 @@ describe("ApifyLinkedInProvider", () => {
     });
   });
 
-  it("maps dataset items into enriched profiles keyed by profile URL", async () => {
+  it("maps dataset items into enriched profiles keyed by LinkedIn slug", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => [
         {
-          linkedinUrl: "https://linkedin.com/in/amina-hassan",
+          linkedinUrl: "https://www.linkedin.com/in/amina-hassan",
+          publicIdentifier: "amina-hassan",
           firstName: "Amina",
           lastName: "Hassan",
           headline: "Senior React Developer",
@@ -74,10 +93,10 @@ describe("ApifyLinkedInProvider", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const provider = new ApifyLinkedInProvider("test-token", "some-actor");
-    const result = await provider.enrichProfiles(["https://linkedin.com/in/amina-hassan"]);
+    const result = await provider.enrichProfiles(["https://eg.linkedin.com/in/amina-hassan"]);
 
-    expect(result.get("https://linkedin.com/in/amina-hassan")).toEqual({
-      profileUrl: "https://linkedin.com/in/amina-hassan",
+    expect(result.get("amina-hassan")).toEqual({
+      profileUrl: "https://www.linkedin.com/in/amina-hassan",
       name: "Amina Hassan",
       headline: "Senior React Developer",
       currentCompany: "Nile Software Solutions",
@@ -104,14 +123,16 @@ describe("ApifyLinkedInProvider", () => {
   it("leaves experienceYears undefined when the actor returns no experience entries", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => [{ linkedinUrl: "https://linkedin.com/in/amina-hassan" }],
+      json: async () => [
+        { linkedinUrl: "https://www.linkedin.com/in/amina-hassan", publicIdentifier: "amina-hassan" },
+      ],
     });
     vi.stubGlobal("fetch", fetchMock);
 
     const provider = new ApifyLinkedInProvider("test-token", "some-actor");
     const result = await provider.enrichProfiles(["https://linkedin.com/in/amina-hassan"]);
 
-    expect(result.get("https://linkedin.com/in/amina-hassan")?.experienceYears).toBeUndefined();
+    expect(result.get("amina-hassan")?.experienceYears).toBeUndefined();
   });
 
   it("throws EnrichmentProviderError when the HTTP response is not ok", async () => {

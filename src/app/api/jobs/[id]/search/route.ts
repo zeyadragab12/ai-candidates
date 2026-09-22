@@ -6,6 +6,7 @@ import { env } from "@/lib/env";
 import { requireUser } from "@/lib/api/requireUser";
 import { getSearchProvider } from "@/lib/search";
 import { getEnrichmentProvider } from "@/lib/enrichment";
+import { extractLinkedInSlug } from "@/lib/enrichment/ApifyLinkedInProvider";
 import { normalizeCandidate } from "@/lib/candidates/normalize";
 import { dedupeCandidates, getCandidateIdentityKey } from "@/lib/candidates/dedupe";
 import { persistCandidates } from "@/lib/candidates/persist";
@@ -111,11 +112,10 @@ async function processSearchRun(
 
     if (linkedInProfileUrls.length > 0) {
       try {
-        const enrichedByUrl = await enrichmentProvider.enrichProfiles(linkedInProfileUrls);
+        const enrichedBySlug = await enrichmentProvider.enrichProfiles(linkedInProfileUrls);
         allResults = allResults.map((result) => {
-          const enrichment = result.profile_url
-            ? enrichedByUrl.get(result.profile_url)
-            : undefined;
+          const slug = result.profile_url ? extractLinkedInSlug(result.profile_url) : null;
+          const enrichment = slug ? enrichedBySlug.get(slug) : undefined;
           if (!enrichment) return result;
 
           return {
@@ -133,7 +133,7 @@ async function processSearchRun(
           jobId,
           runId,
           profilesRequested: linkedInProfileUrls.length,
-          profilesEnriched: enrichedByUrl.size,
+          profilesEnriched: enrichedBySlug.size,
         });
       } catch (error) {
         logger.warn("LinkedIn enrichment failed; continuing with SerpApi-only data", {
