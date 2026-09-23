@@ -213,12 +213,24 @@ export default function NewJobPage() {
   }
 
   async function pollSearchRunStatus(runId: string, currentJobId: string) {
-    const POLL_INTERVAL_MS = 1500;
-    const MAX_ATTEMPTS = 40;
+    // LinkedIn enrichment via Apify can take several minutes, so keep
+    // polling well past that instead of giving up after a minute.
+    const POLL_INTERVAL_MS = 2000;
+    const MAX_WAIT_MS = 10 * 60 * 1000;
+    const deadline = Date.now() + MAX_WAIT_MS;
 
-    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-      const res = await fetch(`/api/search/${runId}/status`);
-      const run = await res.json();
+    while (Date.now() < deadline) {
+      let res: Response;
+      let run;
+      try {
+        res = await fetch(`/api/search/${runId}/status`);
+        run = await res.json();
+      } catch {
+        // A single dropped poll (dev server recompiling, network blip)
+        // shouldn't abort a search that's still running server-side.
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+        continue;
+      }
 
       if (!res.ok) {
         const msg = run.error ?? "Failed to check search status.";

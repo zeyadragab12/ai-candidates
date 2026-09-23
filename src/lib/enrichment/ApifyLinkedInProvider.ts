@@ -235,10 +235,14 @@ export class ApifyLinkedInProvider {
       },
       {
         ...RETRY_OPTIONS,
-        // A network-level failure (fetch itself throwing, e.g. DNS/timeout)
-        // is just as transient as a 429/5xx, so it's retried too.
-        isRetryable: (error) =>
-          !(error instanceof ApifyHttpError) || isRetryableStatus(error.status),
+        // A network-level failure (fetch itself throwing, e.g. DNS) is just
+        // as transient as a 429/5xx, so it's retried too — except our own
+        // timeout: a chunk that already ran 90s will likely stall again, and
+        // retrying it would add minutes to the search run.
+        isRetryable: (error) => {
+          if (error instanceof Error && error.name === "TimeoutError") return false;
+          return !(error instanceof ApifyHttpError) || isRetryableStatus(error.status);
+        },
       },
     );
   }

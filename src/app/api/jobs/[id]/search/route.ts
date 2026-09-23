@@ -76,20 +76,22 @@ async function processSearchRun(
   let allResults: CandidateSearchResult[] = [];
   const queryErrors: string[] = [];
 
-  for (const query of queries) {
-    try {
-      const results = await searchProvider.searchCandidates({
-        query,
-        location: location ?? undefined,
-      });
-      allResults.push(...results);
-    } catch (error) {
-      logger.warn("Search query failed", { jobId, runId, query, error });
-      queryErrors.push(
-        error instanceof Error ? error.message : "Unknown search error",
-      );
+  // Queries are independent, so run them concurrently rather than paying
+  // each one's latency (and retries) back to back.
+  const settled = await Promise.allSettled(
+    queries.map((query) =>
+      searchProvider.searchCandidates({ query, location: location ?? undefined }),
+    ),
+  );
+  settled.forEach((outcome, index) => {
+    if (outcome.status === "fulfilled") {
+      allResults.push(...outcome.value);
+      return;
     }
-  }
+    const error = outcome.reason;
+    logger.warn("Search query failed", { jobId, runId, query: queries[index], error });
+    queryErrors.push(error instanceof Error ? error.message : "Unknown search error");
+  });
 
   // Enrich LinkedIn profile URLs SerpApi already discovered via Apify's
   // LinkedIn Profile Scraper, filling in real profile data (headline,
@@ -317,9 +319,9 @@ export const POST = withErrorHandling(async (
   // client tracks progress via GET /api/search/:runId/status. The request's
   // correlation id is passed through so background log lines can be tied
   // back to the request that started them.
-  getJobQueue().enqueue(
-    () =>
-      processSearchRun(
+  getJobQueue().enqueue(async () => {
+    try {
+      await processSearchRun(
         supabase,
         auth.user.id,
         jobId,
@@ -328,9 +330,22 @@ export const POST = withErrorHandling(async (
         provider,
         jobLocation,
         logger,
-      ),
-    getOrCreateRequestId(request),
-  );
+      );
+    } catch (error) {
+      // Without this, an unexpected throw (e.g. in persistCandidates)
+      // leaves the run at "running" forever and the client polls until it
+      // gives up.
+      logger.error("Search run failed unexpectedly", { jobId, runId: run.id, error });
+      await supabase
+        .from("search_runs")
+        .update({
+          status: "error",
+          error: "Search failed unexpectedly. Please try again.",
+          completed_at: new Date().toISOString(),
+        })
+        .eq("id", run.id);
+    }
+  }, getOrCreateRequestId(request));
 
   return NextResponse.json(run, { status: 202 });
 });
