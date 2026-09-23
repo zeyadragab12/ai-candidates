@@ -219,6 +219,17 @@ describe("SerpApiProvider", () => {
     );
   });
 
+  it("returns an empty list when Google has no results for the query", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ error: "Google hasn't returned any results for this query." }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = new SerpApiProvider("test-key");
+    await expect(provider.searchCandidates({ query: "x" })).resolves.toEqual([]);
+  });
+
   it("throws SearchProviderError when the network request itself fails", async () => {
     const fetchMock = vi.fn().mockRejectedValue(new Error("network down"));
     vi.stubGlobal("fetch", fetchMock);

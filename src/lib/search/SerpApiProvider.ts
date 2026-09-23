@@ -17,6 +17,8 @@ const RETRY_OPTIONS = {
   maxDelayMs: 4000,
 };
 
+const NO_RESULTS_ERROR_PATTERN = /hasn't returned any results/i;
+
 /** Marks the error with the HTTP status so withRetry's isRetryable can see it
  * without re-fetching or re-parsing the response. */
 class SerpApiHttpError extends Error {
@@ -162,6 +164,14 @@ export class SerpApiProvider implements SearchProvider {
       throw new SearchProviderError("serpapi", error);
     }
 
+    // SerpApi reports "Google found nothing" through the same `error` field
+    // as real failures (confirmed live: HTTP 200 with
+    // `{"error": "Google hasn't returned any results for this query."}`).
+    // A narrow query legitimately matching no one isn't a provider failure,
+    // so it's an empty result, not an error surfaced on the search run.
+    if (data.error && NO_RESULTS_ERROR_PATTERN.test(data.error)) {
+      return [];
+    }
     if (data.error) {
       throw new SearchProviderError("serpapi", new Error(data.error));
     }
