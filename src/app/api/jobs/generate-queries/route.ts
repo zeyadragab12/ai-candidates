@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getAIProvider } from "@/lib/ai";
 import { generateSearchQueries } from "@/lib/ai/prompts/search-query-generation";
 import { requireUser } from "@/lib/api/requireUser";
+import { resolveCleanLocationText } from "@/lib/candidates/locationBias";
 import { withErrorHandling } from "@/lib/errors";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { jobAnalysisSchema } from "@/types/job-analysis";
@@ -62,7 +63,20 @@ export const POST = withErrorHandling(async (request: Request) => {
     previousQueries = (data ?? []).map((row) => row.query as string);
   }
 
+  // A raw location value straight from a recruiter can be a list of cities
+  // or other non-canonical text ("Egypt; Cairo, Giza, Mansoura, Alex").
+  // Quoting that verbatim as a literal search phrase asks Google to match
+  // text no real profile will ever contain — confirmed live to make Google
+  // silently drop the query's actual constraints and return unrelated
+  // noise instead of erroring. Clean it the same way the SerpApi location
+  // param is cleaned (see resolveCleanLocationText) before it ever reaches
+  // the prompt.
+  const cleanedJobAnalysis = {
+    ...jobAnalysis,
+    location: resolveCleanLocationText(jobAnalysis.location) ?? "",
+  };
+
   const provider = getAIProvider();
-  const queries = await generateSearchQueries(jobAnalysis, provider, previousQueries);
+  const queries = await generateSearchQueries(cleanedJobAnalysis, provider, previousQueries);
   return NextResponse.json({ search_queries: queries });
 });

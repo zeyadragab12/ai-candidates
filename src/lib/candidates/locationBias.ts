@@ -57,6 +57,42 @@ const CLEAN_GOVERNORATE_VALUES = new Set(
 );
 
 /**
+ * Cleans a job's location down to a single, quotable geographic value —
+ * shared by resolveEgyptSearchLocation (SerpApi's `location` param) below
+ * and the AI search-query-generation prompt (which quotes this exact text
+ * as a literal phrase). A list of cities or other non-canonical text isn't
+ * safe to use as-is in either place: SerpApi hard-400s on it (confirmed
+ * live: "Egypt; Cairo, Giza, Mansoura, Alex" returned `Unsupported ...
+ * location`), and quoting it verbatim in a search query asks Google to
+ * match a literal string no real profile will ever contain — confirmed
+ * live too: Google silently drops the query's actual constraints instead
+ * of erroring, returning unrelated noise (a geography professor, a
+ * pharmacist in Brazil, ...) instead of relevant Egypt-based candidates.
+ *
+ * Returns null for empty/non-geographic values, the value unchanged for a
+ * single clean governorate/city or a genuinely non-Egypt location, and
+ * "Egypt" for anything else that mentions Egypt (a list, stray
+ * punctuation, etc.) — country-level targeting is always resolvable and
+ * safe to quote, unlike an arbitrary malformed string.
+ */
+export function resolveCleanLocationText(
+  rawLocation: string | null | undefined,
+): string | null {
+  if (!rawLocation || !shouldApplyLocationBias(rawLocation)) return null;
+
+  const normalized = rawLocation.trim();
+  const lower = normalized.toLowerCase();
+  const isCountryLevel = lower === "egypt" || lower === "eg";
+  const isCleanGovernorate = CLEAN_GOVERNORATE_VALUES.has(lower);
+
+  if (!isCountryLevel && !isCleanGovernorate && !mentionsEgyptLocation(normalized)) {
+    return normalized;
+  }
+
+  return isCleanGovernorate ? normalized : "Egypt";
+}
+
+/**
  * Resolves a job's location into SerpApi search params, with Egypt-specific
  * nationwide handling: a bare country-level value ("Egypt") searches at
  * country granularity (location="Egypt", gl="eg") instead of Google
@@ -66,13 +102,6 @@ const CLEAN_GOVERNORATE_VALUES = new Set(
  * results toward Egypt as a whole, whereas `location` alone is only a
  * ranking hint.
  *
- * SerpApi's `location` param only accepts a canonical value and hard-400s
- * on anything else (confirmed live: "Egypt; Cairo, Giza, Mansoura, Alex" —
- * a real recruiter-entered value — returned `Unsupported ... location`,
- * failing every query in the run). So any Egypt-mentioning value that ISN'T
- * a single clean governorate name falls back to country-level "Egypt"
- * rather than passing the raw, possibly malformed string through.
- *
  * Always a single set of params for the whole job, never looped per
  * governorate, so it doesn't multiply SerpApi usage or duplicate-candidate
  * risk across per-city searches.
@@ -80,19 +109,18 @@ const CLEAN_GOVERNORATE_VALUES = new Set(
 export function resolveEgyptSearchLocation(
   rawLocation: string | null | undefined,
 ): SerpApiLocationParams {
-  if (!rawLocation || !shouldApplyLocationBias(rawLocation)) return {};
+  const cleanLocation = resolveCleanLocationText(rawLocation);
+  if (!cleanLocation) return {};
 
-  const normalized = rawLocation.trim();
-  const lower = normalized.toLowerCase();
-  const isCountryLevel = lower === "egypt" || lower === "eg";
-  const isCleanGovernorate = CLEAN_GOVERNORATE_VALUES.has(lower);
+  const lower = cleanLocation.toLowerCase();
+  const mentionsEgypt = lower === "egypt" || CLEAN_GOVERNORATE_VALUES.has(lower);
 
-  if (!isCountryLevel && !isCleanGovernorate && !mentionsEgyptLocation(normalized)) {
-    return { location: normalized };
+  if (!mentionsEgypt) {
+    return { location: cleanLocation };
   }
 
   return {
-    location: isCleanGovernorate ? normalized : "Egypt",
+    location: cleanLocation,
     countryCode: "eg",
     googleDomain: "google.com.eg",
   };
