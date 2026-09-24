@@ -41,11 +41,9 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toast";
 import type { JobAnalysis } from "@/types/job-analysis";
 import { cn } from "@/lib/utils";
+import { EMPLOYMENT_TYPES, WORK_ARRANGEMENTS } from "@/lib/jobs/constants";
 
 type InputMode = "paste" | "upload";
-
-const EMPLOYMENT_TYPES = ["Full-time", "Part-time", "Contract", "Internship"];
-const WORK_ARRANGEMENTS = ["Remote", "Hybrid", "On-site"];
 
 export default function NewJobPage() {
   const router = useRouter();

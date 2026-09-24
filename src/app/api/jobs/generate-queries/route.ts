@@ -70,10 +70,13 @@ export const POST = withErrorHandling(async (request: Request) => {
   // silently drop the query's actual constraints and return unrelated
   // noise instead of erroring. Clean it the same way the SerpApi location
   // param is cleaned (see resolveCleanLocationText) before it ever reaches
-  // the prompt.
+  // the prompt. Empty/non-geographic values (no location, "Remote",
+  // "Global", ...) default to "Egypt" — a single clean, country-level value
+  // that's already safe to quote and matches resolveEgyptSearchLocation's
+  // own nationwide handling — rather than leaving the search unscoped.
   const cleanedJobAnalysis = {
     ...jobAnalysis,
-    location: resolveCleanLocationText(jobAnalysis.location) ?? "",
+    location: resolveCleanLocationText(jobAnalysis.location) ?? "Egypt",
   };
 
   const provider = getAIProvider();

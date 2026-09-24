@@ -6,8 +6,22 @@ import { X, Plus, GraduationCap, Briefcase, Tag, CheckCircle2 } from "lucide-rea
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { JobAnalysis } from "@/types/job-analysis";
 import { cn } from "@/lib/utils";
+import { EMPLOYMENT_TYPES, LOCATION_OPTIONS } from "@/lib/jobs/constants";
+
+// Radix Select can't use "" as an item value, so an unset location/employment
+// type is represented by this sentinel in the dropdown and translated back to
+// "" (what the rest of the app — JobAnalysis, resolveCleanLocationText,
+// etc. — expects for "not specified") on change.
+const UNSPECIFIED_VALUE = "unspecified";
 
 type ArrayField =
   | "required_skills"
@@ -184,18 +198,28 @@ export function RequirementsEditor({ value, onChange }: RequirementsEditorProps)
             <label className="text-xs font-semibold text-slate-700" htmlFor="ra-location">
               Location
             </label>
-            <Input
-              id="ra-location"
-              value={value.location}
-              onChange={(e) => updateField("location", e.target.value)}
-              placeholder="e.g. Cairo, Egypt — leave blank to search globally"
-              className="bg-white text-sm h-9"
-            />
+            <Select
+              value={value.location || UNSPECIFIED_VALUE}
+              onValueChange={(selected) =>
+                updateField("location", selected === UNSPECIFIED_VALUE ? "" : selected)
+              }
+            >
+              <SelectTrigger id="ra-location" className="bg-white text-sm h-9">
+                <SelectValue placeholder="Select a location" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={UNSPECIFIED_VALUE}>Not specified</SelectItem>
+                {LOCATION_OPTIONS.map((location) => (
+                  <SelectItem key={location} value={location}>
+                    {location}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <p className="text-[11px] text-slate-500 leading-snug">
-              Restricts candidate search results to profiles mentioning this place. Clear it (or
-              use a real city/country) for a remote or international role — values like
-              &quot;Remote&quot; or &quot;Global&quot; are ignored automatically, but a leftover
-              real place name from a template will still filter results down to it.
+              Restricts candidate search results to profiles mentioning this place. Choose
+              &quot;Not specified&quot;, &quot;Remote&quot;, or &quot;Global&quot; for a role open
+              to any location — those are ignored automatically when searching.
             </p>
           </div>
 
@@ -203,12 +227,24 @@ export function RequirementsEditor({ value, onChange }: RequirementsEditorProps)
             <label className="text-xs font-semibold text-slate-700" htmlFor="ra-employment-type">
               Employment Type
             </label>
-            <Input
-              id="ra-employment-type"
-              value={value.employment_type}
-              onChange={(e) => updateField("employment_type", e.target.value)}
-              className="bg-white text-sm h-9"
-            />
+            <Select
+              value={value.employment_type || UNSPECIFIED_VALUE}
+              onValueChange={(selected) =>
+                updateField("employment_type", selected === UNSPECIFIED_VALUE ? "" : selected)
+              }
+            >
+              <SelectTrigger id="ra-employment-type" className="bg-white text-sm h-9">
+                <SelectValue placeholder="Select employment type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={UNSPECIFIED_VALUE}>Not specified</SelectItem>
+                {EMPLOYMENT_TYPES.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="flex flex-col gap-1.5">
