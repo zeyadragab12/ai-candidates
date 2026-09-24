@@ -20,7 +20,7 @@ Every query must follow this exact structure, in this order:
 1. A site restriction group: (site:linkedin.com/in OR site:linkedin.com/pub)
 2. A job-title group: 3 to 6 real equivalent/synonymous job titles for the role (the given title plus common industry synonyms), each double-quoted and OR'd together in parentheses, e.g. ("Title A" OR "Title B" OR "Title C")
 3. One or two double-quoted required-skill or keyword phrases, space-separated (implicit AND) — pull these from the required skills and keywords provided. Each phrase must be a short, commonly written term of 1 to 3 words that people actually put on their profiles (e.g. "root cause analysis", "Lean Six Sigma", "CAPA"), never a long descriptive phrase copied from the job description (e.g. NOT "quality checks and validation reviews" or "corrective and preventive actions (CAPA)"). Every extra quoted phrase must appear verbatim on a profile for it to match, so more than two phrases usually returns zero results. Vary which skills each query uses so the variants surface different candidates.
-4. If a location is given, append it as a plain (unquoted) word or short phrase at the very end of every query — never omit it when one is provided, and never put it inside the title group. This is the recruiter's hard location requirement, not optional context.
+4. If a location is given, append it as a double-quoted phrase at the very end of every query — never omit it when one is provided, and never put it inside the title group. This is the recruiter's hard location requirement, not optional context: quoting it forces the search engine to require that literal text on the page, instead of treating it as an optional hint it can drop.
 Add a seniority term only if it is essential to disambiguate the role.
 Never write a full sentence, a question, or a generic query like "<role> developers <location>". Only use information present in the provided requirements — never invent a skill or title that isn't implied by it.
 Respond with raw JSON only. Do not wrap the JSON in markdown code fences.`;
@@ -41,8 +41,8 @@ Required Skills: ${jobAnalysis.required_skills.join(", ") || "(none listed)"}
 Preferred Skills: ${jobAnalysis.preferred_skills.join(", ") || "(none listed)"}
 Keywords: ${jobAnalysis.keywords.join(", ") || "(none listed)"}
 
-Example of the expected structure (site group, then OR'd quoted title synonyms in parentheses, then quoted skill/keyword phrases, then the location as a trailing plain word):
-(site:linkedin.com/in OR site:linkedin.com/pub) ("Transformation Excellence Senior Specialist" OR "Operational Excellence Senior Specialist" OR "Process Improvement Specialist" OR "Quality Assurance Senior Specialist") "root cause analysis" "CAPA" Egypt
+Example of the expected structure (site group, then OR'd quoted title synonyms in parentheses, then quoted skill/keyword phrases, then the location as a trailing quoted phrase):
+(site:linkedin.com/in OR site:linkedin.com/pub) ("Transformation Excellence Senior Specialist" OR "Operational Excellence Senior Specialist" OR "Process Improvement Specialist" OR "Quality Assurance Senior Specialist") "root cause analysis" "CAPA" "Egypt"
 
 Never generate a query without the (site:linkedin.com/in OR site:linkedin.com/pub) group, never generate a query without the OR'd title group in parentheses, never drop the location when one is given, and never generate a generic query such as "React developers Egypt" or "React companies Egypt".`;
 }
