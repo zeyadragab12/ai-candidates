@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Briefcase,
@@ -57,10 +57,38 @@ export default function NewJobPage() {
 
   // Form state
   const [title, setTitle] = useState("");
-  const [company, setCompany] = useState("");
+  const [companyId, setCompanyId] = useState("");
+  const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
+  const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
+  const [companiesError, setCompaniesError] = useState<string | null>(null);
   const [employmentType, setEmploymentType] = useState("");
   const [workArrangement, setWorkArrangement] = useState("");
   const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setIsLoadingCompanies(true);
+    setCompaniesError(null);
+    fetch("/api/companies", { signal: controller.signal })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) {
+          setCompaniesError(data.error ?? "Failed to load companies.");
+          return;
+        }
+        setCompanies(data.companies ?? []);
+      })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setCompaniesError("Failed to load companies.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoadingCompanies(false);
+      });
+    return () => controller.abort();
+  }, []);
+
+  const selectedCompanyName = companies.find((c) => c.id === companyId)?.name ?? null;
 
   // Job description & file upload state
   const [mode, setMode] = useState<InputMode>("upload");
@@ -96,7 +124,7 @@ export default function NewJobPage() {
 
   const jobDetailsErrors: Record<string, string> = {};
   if (!title.trim()) jobDetailsErrors.title = "Job title is required.";
-  if (!company.trim()) jobDetailsErrors.company = "Company name is required.";
+  if (!companyId) jobDetailsErrors.company = "Company is required.";
   if (!employmentType) jobDetailsErrors.employmentType = "Employment type is required.";
   if (!workArrangement) jobDetailsErrors.workArrangement = "Work arrangement is required.";
   const isJobDetailsValid = Object.keys(jobDetailsErrors).length === 0;
@@ -311,6 +339,7 @@ export default function NewJobPage() {
         body: JSON.stringify({
           title: title || analysis.job_title,
           description,
+          company_id: companyId,
           location: analysis.location,
           employment_type: employmentType || analysis.employment_type,
           work_arrangement: workArrangement,
@@ -404,7 +433,7 @@ export default function NewJobPage() {
                   <CardDescription className="text-xs text-slate-500">
                     {isJobDetailsOpen
                       ? "Specify job title, company, and employment structure"
-                      : `${title || "Role Title"} • ${company || "Company"} • ${employmentType || "Full-time"} • ${workArrangement || "Remote"}`}
+                      : `${title || "Role Title"} • ${selectedCompanyName || "Company"} • ${employmentType || "Full-time"} • ${workArrangement || "Remote"}`}
                   </CardDescription>
                 </div>
               </div>
@@ -447,21 +476,42 @@ export default function NewJobPage() {
               <div className="flex flex-col gap-1.5">
                 <label htmlFor="job-company" className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
                   <Building2 className="h-3.5 w-3.5 text-slate-400" />
-                  Company Name <span className="text-red-600">*</span>
+                  Company <span className="text-red-600">*</span>
                 </label>
-                <Input
-                  id="job-company"
-                  value={company}
-                  onChange={(e) => setCompany(e.target.value)}
-                  onBlur={() => setTouchedFields((prev) => ({ ...prev, company: true }))}
-                  placeholder="e.g. Acme Corp / Client Name"
-                  className="bg-white"
-                  aria-invalid={touchedFields.company && !!jobDetailsErrors.company}
-                  data-testid="job-company-input"
-                />
+                <Select
+                  value={companyId}
+                  onValueChange={(value) => {
+                    setCompanyId(value);
+                    setTouchedFields((prev) => ({ ...prev, company: true }));
+                  }}
+                  disabled={isLoadingCompanies}
+                >
+                  <SelectTrigger
+                    id="job-company"
+                    className="bg-white"
+                    aria-invalid={touchedFields.company && !!jobDetailsErrors.company}
+                    data-testid="job-company-trigger"
+                  >
+                    <SelectValue
+                      placeholder={isLoadingCompanies ? "Loading companies..." : "Select a company"}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {companies.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {touchedFields.company && jobDetailsErrors.company && (
                   <p role="alert" className="text-xs font-medium text-red-600">
                     {jobDetailsErrors.company}
+                  </p>
+                )}
+                {companiesError && (
+                  <p role="alert" className="text-xs font-medium text-red-600">
+                    {companiesError}
                   </p>
                 )}
               </div>
@@ -888,9 +938,9 @@ export default function NewJobPage() {
               </span>.
             </p>
 
-            {company && (
+            {selectedCompanyName && (
               <p className="text-xs text-slate-400 mt-1">
-                Company: <span className="font-medium text-slate-600">{company}</span>
+                Company: <span className="font-medium text-slate-600">{selectedCompanyName}</span>
               </p>
             )}
 

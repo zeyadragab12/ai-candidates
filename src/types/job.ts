@@ -3,6 +3,7 @@ import { z } from "zod";
 export const jobCreateSchema = z.object({
   title: z.string().trim().min(1, "Title is required."),
   description: z.string().trim().min(1, "Description is required."),
+  company_id: z.string().uuid("Select a company.").nullable().default(null),
   location: z.string().trim().default(""),
   employment_type: z.string().trim().default(""),
   work_arrangement: z.string().trim().default(""),
