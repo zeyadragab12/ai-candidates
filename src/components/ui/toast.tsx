@@ -120,7 +120,7 @@ export function Toaster() {
     <div
       aria-live="polite"
       aria-atomic="true"
-      className="fixed bottom-5 right-5 z-50 flex flex-col gap-2.5 max-w-md w-full pointer-events-none px-4 sm:px-0"
+      className="fixed top-5 right-5 z-50 flex flex-col gap-2.5 max-w-md w-full pointer-events-none px-4 sm:px-0"
     >
       {toasts.map((t) => {
         const icons = {
@@ -144,7 +144,7 @@ export function Toaster() {
             key={t.id}
             role="alert"
             className={cn(
-              "pointer-events-auto flex items-start gap-3 p-4 rounded-xl border shadow-lg backdrop-blur-md transition-all duration-300 animate-in fade-in slide-in-from-bottom-5",
+              "pointer-events-auto flex items-start gap-3 p-4 rounded-xl border shadow-lg backdrop-blur-md animate-toast-in",
               borderStyles[type]
             )}
           >
