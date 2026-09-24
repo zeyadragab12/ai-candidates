@@ -1,3 +1,5 @@
+import { waitUntil } from "@vercel/functions";
+
 import { createLogger } from "@/lib/logger";
 
 export interface JobQueue {
@@ -22,13 +24,22 @@ export interface JobQueue {
  * this for a real queue (Inngest, Trigger.dev, BullMQ + Redis, Upstash
  * QStash) later means implementing the same JobQueue interface and
  * changing getJobQueue()'s factory line — callers never change.
+ *
+ * The task is wrapped in Vercel's waitUntil() so the serverless function
+ * instance stays alive until it finishes, even though the HTTP response
+ * was already sent. Without this, Vercel can freeze/kill the instance the
+ * moment the response goes out, leaving the task half-run (e.g. a search
+ * run stuck at status "running" forever). waitUntil() is a no-op outside
+ * Vercel's runtime, so this is still safe locally.
  */
 class InProcessQueue implements JobQueue {
   enqueue(task: () => Promise<void>, requestId?: string): void {
     const logger = createLogger(requestId ?? "no-request-id");
-    void task().catch((error) => {
-      logger.error("Unhandled background task error", { error });
-    });
+    waitUntil(
+      task().catch((error) => {
+        logger.error("Unhandled background task error", { error });
+      }),
+    );
   }
 }
 
