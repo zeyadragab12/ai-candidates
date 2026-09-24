@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireUser } from "@/lib/api/requireUser";
+import { logActivity } from "@/lib/activity/log";
 import { withErrorHandling } from "@/lib/errors";
 import { jobCreateSchema } from "@/types/job";
 
@@ -66,6 +67,14 @@ export const POST = withErrorHandling(async (request: Request) => {
       { status: 500 },
     );
   }
+
+  await logActivity(supabase, {
+    userId: user.id,
+    action: "job.created",
+    entityType: "job",
+    entityId: data.id,
+    description: `Created job "${data.title}"`,
+  });
 
   return NextResponse.json(data, { status: 201 });
 });

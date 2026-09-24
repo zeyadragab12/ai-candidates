@@ -4,6 +4,7 @@ export const CANDIDATE_STATUSES = [
   "Shortlisted",
   "Rejected",
   "Contacted",
+  "Hired",
 ] as const;
 
 export type CandidateStatus = (typeof CANDIDATE_STATUSES)[number];

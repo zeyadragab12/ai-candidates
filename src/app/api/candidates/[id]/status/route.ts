@@ -2,19 +2,13 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { requireUser } from "@/lib/api/requireUser";
+import { logActivity } from "@/lib/activity/log";
 import { withErrorHandling } from "@/lib/errors";
+import { CANDIDATE_STATUSES } from "@/lib/candidates/statuses";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
-
-const CANDIDATE_STATUSES = [
-  "New",
-  "Reviewed",
-  "Shortlisted",
-  "Rejected",
-  "Contacted",
-] as const;
 
 const requestSchema = z.object({
   status: z.enum(CANDIDATE_STATUSES),
@@ -80,6 +74,15 @@ export const PUT = withErrorHandling(async (request: Request, { params }: RouteP
       { status: 500 },
     );
   }
+
+  await logActivity(supabase, {
+    userId: auth.user.id,
+    action: "candidate.status_changed",
+    entityType: "candidate",
+    entityId: candidateId,
+    description: `Changed ${updated.name ?? "a candidate"}'s status from ${existing.data.status} to ${newStatus}`,
+    metadata: { oldStatus: existing.data.status, newStatus },
+  });
 
   return NextResponse.json(updated);
 });
