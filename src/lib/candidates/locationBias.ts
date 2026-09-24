@@ -1,4 +1,4 @@
-import { mentionsEgyptLocation } from "@/lib/candidates/egyptLocations";
+import { EGYPT_GOVERNORATES, mentionsEgyptLocation } from "@/lib/candidates/egyptLocations";
 
 // Non-geographic values a recruiter might reasonably type (or an AI
 // extraction might return) into a job's location field that describe the
@@ -46,14 +46,33 @@ export interface SerpApiLocationParams {
   googleDomain?: string;
 }
 
+// A governorate name, optionally suffixed with ", Egypt" — the only shapes
+// SerpApi's `location` param can actually resolve for us. Built once, not
+// per call.
+const CLEAN_GOVERNORATE_VALUES = new Set(
+  EGYPT_GOVERNORATES.flatMap((governorate) => {
+    const lower = governorate.toLowerCase();
+    return [lower, `${lower}, egypt`];
+  }),
+);
+
 /**
  * Resolves a job's location into SerpApi search params, with Egypt-specific
  * nationwide handling: a bare country-level value ("Egypt") searches at
  * country granularity (location="Egypt", gl="eg") instead of Google
- * resolving an arbitrary/narrow city, while a named governorate/city (e.g.
- * "Cairo, Egypt") keeps that specific location string but still gets
- * gl="eg" — that param does most of the actual work of biasing results
- * toward Egypt as a whole, whereas `location` alone is only a ranking hint.
+ * resolving an arbitrary/narrow city, while a single clean governorate/city
+ * value (e.g. "Cairo, Egypt") keeps that specific location string. Either
+ * way gl="eg" is set — that param does most of the actual work of biasing
+ * results toward Egypt as a whole, whereas `location` alone is only a
+ * ranking hint.
+ *
+ * SerpApi's `location` param only accepts a canonical value and hard-400s
+ * on anything else (confirmed live: "Egypt; Cairo, Giza, Mansoura, Alex" —
+ * a real recruiter-entered value — returned `Unsupported ... location`,
+ * failing every query in the run). So any Egypt-mentioning value that ISN'T
+ * a single clean governorate name falls back to country-level "Egypt"
+ * rather than passing the raw, possibly malformed string through.
+ *
  * Always a single set of params for the whole job, never looped per
  * governorate, so it doesn't multiply SerpApi usage or duplicate-candidate
  * risk across per-city searches.
@@ -66,13 +85,14 @@ export function resolveEgyptSearchLocation(
   const normalized = rawLocation.trim();
   const lower = normalized.toLowerCase();
   const isCountryLevel = lower === "egypt" || lower === "eg";
+  const isCleanGovernorate = CLEAN_GOVERNORATE_VALUES.has(lower);
 
-  if (!isCountryLevel && !mentionsEgyptLocation(normalized)) {
+  if (!isCountryLevel && !isCleanGovernorate && !mentionsEgyptLocation(normalized)) {
     return { location: normalized };
   }
 
   return {
-    location: isCountryLevel ? "Egypt" : normalized,
+    location: isCleanGovernorate ? normalized : "Egypt",
     countryCode: "eg",
     googleDomain: "google.com.eg",
   };

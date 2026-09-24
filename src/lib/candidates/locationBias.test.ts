@@ -60,4 +60,20 @@ describe("resolveEgyptSearchLocation", () => {
       location: "Berlin, Germany",
     });
   });
+
+  it("falls back to country-level 'Egypt' for a malformed multi-city value, rather than passing it through (SerpApi 400s on anything non-canonical)", () => {
+    expect(resolveEgyptSearchLocation("Egypt; Cairo, Giza, Mansoura, Alex")).toEqual({
+      location: "Egypt",
+      countryCode: "eg",
+      googleDomain: "google.com.eg",
+    });
+  });
+
+  it("falls back to country-level 'Egypt' for a list of multiple governorates", () => {
+    expect(resolveEgyptSearchLocation("Cairo, Giza, Alexandria")).toEqual({
+      location: "Egypt",
+      countryCode: "eg",
+      googleDomain: "google.com.eg",
+    });
+  });
 });
