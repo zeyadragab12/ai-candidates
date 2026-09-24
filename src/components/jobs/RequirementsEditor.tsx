@@ -192,10 +192,10 @@ export function RequirementsEditor({ value, onChange }: RequirementsEditorProps)
               className="bg-white text-sm h-9"
             />
             <p className="text-[11px] text-slate-500 leading-snug">
-              Biases candidate search results toward this place. Clear it (or use a real city/
-              country) for a remote or international role — values like &quot;Remote&quot; or
-              &quot;Global&quot; are ignored automatically, but a leftover real place name from a
-              template will still skew results toward it.
+              Restricts candidate search results to profiles mentioning this place. Clear it (or
+              use a real city/country) for a remote or international role — values like
+              &quot;Remote&quot; or &quot;Global&quot; are ignored automatically, but a leftover
+              real place name from a template will still filter results down to it.
             </p>
           </div>
 
