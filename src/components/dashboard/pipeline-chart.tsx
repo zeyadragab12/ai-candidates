@@ -34,11 +34,13 @@ export function PipelineChart({ counts }: { counts: Record<string, number> }) {
           <div key={stage} className="flex items-center gap-3">
             <span className="w-24 shrink-0 text-sm text-muted-foreground">{stage}</span>
             <div className="h-5 flex-1 overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full rounded-full transition-[width]"
-                style={{ width: `${widthPct}%`, backgroundColor: STAGE_COLOR[stage] }}
-                title={`${stage}: ${count}`}
-              />
+              {count > 0 && (
+                <div
+                  className="h-full rounded-full transition-[width]"
+                  style={{ width: `${widthPct}%`, backgroundColor: STAGE_COLOR[stage] }}
+                  title={`${stage}: ${count}`}
+                />
+              )}
             </div>
             <span className="w-8 shrink-0 text-right text-sm font-medium tabular-nums text-foreground">
               {count}

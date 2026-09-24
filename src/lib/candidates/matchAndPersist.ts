@@ -32,6 +32,7 @@ export async function matchAndPersistCandidate(
   jobInput: MatchingJobInput,
   candidateId: string,
   candidateInput: MatchingCandidateInput,
+  searchRunId: string | null,
 ): Promise<MatchAndPersistResult> {
   let result;
   try {
@@ -59,7 +60,13 @@ export async function matchAndPersistCandidate(
   const { data, error: dbError } = await supabase
     .from("candidate_matches")
     .upsert(
-      { job_id: jobId, candidate_id: candidateId, ...scores, ai_summary: summary },
+      {
+        job_id: jobId,
+        candidate_id: candidateId,
+        search_run_id: searchRunId,
+        ...scores,
+        ai_summary: summary,
+      },
       { onConflict: "job_id,candidate_id" },
     )
     .select()

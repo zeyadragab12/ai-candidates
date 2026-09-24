@@ -7,6 +7,7 @@ import type { MatchingCandidateInput, MatchingJobInput } from "@/types/matching"
 export interface BatchMatchCandidate {
   candidateId: string;
   input: MatchingCandidateInput;
+  searchRunId: string | null;
 }
 
 export interface BatchMatchSummary {
@@ -64,8 +65,8 @@ export async function runBatchMatch(
   const results = await mapWithConcurrencyLimit(
     candidates,
     CONCURRENCY_LIMIT,
-    ({ candidateId, input }) =>
-      matchAndPersistCandidate(supabase, provider, jobId, jobInput, candidateId, input),
+    ({ candidateId, input, searchRunId }) =>
+      matchAndPersistCandidate(supabase, provider, jobId, jobInput, candidateId, input, searchRunId),
   );
 
   const succeeded = results.filter((r) => r.success).length;

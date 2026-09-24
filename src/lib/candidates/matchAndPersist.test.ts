@@ -76,6 +76,7 @@ describe("matchAndPersistCandidate", () => {
       JOB,
       "candidate-1",
       CANDIDATE,
+      null,
     );
 
     expect(result.success).toBe(true);
@@ -86,7 +87,7 @@ describe("matchAndPersistCandidate", () => {
     const supabase = makeFakeSupabase();
     const provider = makeProvider(VALID_MATCH_JSON);
 
-    await matchAndPersistCandidate(supabase, provider, "job-1", JOB, "candidate-1", CANDIDATE);
+    await matchAndPersistCandidate(supabase, provider, "job-1", JOB, "candidate-1", CANDIDATE, null);
 
     const [upsertedRow] = supabase._upsert.mock.calls[0];
     expect(upsertedRow.ai_summary).toBe("Good match.");
@@ -104,6 +105,7 @@ describe("matchAndPersistCandidate", () => {
       JOB,
       "candidate-1",
       CANDIDATE,
+      null,
     );
 
     expect(result.success).toBe(false);
@@ -122,6 +124,7 @@ describe("matchAndPersistCandidate", () => {
       JOB,
       "candidate-1",
       CANDIDATE,
+      null,
     );
 
     expect(result.success).toBe(false);
@@ -141,6 +144,7 @@ describe("matchAndPersistCandidate", () => {
       JOB,
       "candidate-1",
       CANDIDATE,
+      null,
     );
 
     expect(result.success).toBe(false);
@@ -171,6 +175,7 @@ describe("matchAndPersistCandidate", () => {
       JOB,
       "candidate-1",
       CANDIDATE,
+      null,
     );
 
     expect(result.success).toBe(false);

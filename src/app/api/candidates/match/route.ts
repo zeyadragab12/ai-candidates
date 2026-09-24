@@ -46,9 +46,15 @@ export const POST = withErrorHandling(async (request: Request) => {
   }
   const { candidateId, jobId } = parsed.data;
 
-  const [jobResult, candidateResult] = await Promise.all([
+  const [jobResult, candidateResult, jobCandidateResult] = await Promise.all([
     supabase.from("jobs").select("*").eq("id", jobId).maybeSingle(),
     supabase.from("candidates").select("*").eq("id", candidateId).maybeSingle(),
+    supabase
+      .from("job_candidates")
+      .select("search_run_id")
+      .eq("job_id", jobId)
+      .eq("candidate_id", candidateId)
+      .maybeSingle(),
   ]);
 
   if (jobResult.error || candidateResult.error) {
@@ -74,6 +80,7 @@ export const POST = withErrorHandling(async (request: Request) => {
     jobInput,
     candidateId,
     candidateInput,
+    jobCandidateResult.data?.search_run_id ?? null,
   );
 
   if (!result.success) {

@@ -39,6 +39,14 @@ export const GET = withErrorHandling(async (request: Request, { params }: RouteP
       .eq("candidate_id", id)
       .maybeSingle();
     match = matchResult.data ?? null;
+
+    // Marks this candidate as seen by the current user for this job, so the
+    // dashboard's Unseen Candidates count stays accurate. Best-effort: a
+    // failure here should never break loading the candidate itself.
+    await supabase.from("candidate_views").upsert(
+      { user_id: auth.user.id, candidate_id: id, job_id: jobId, viewed_at: new Date().toISOString() },
+      { onConflict: "user_id,candidate_id,job_id" },
+    );
   }
 
   return NextResponse.json({ ...data, match });

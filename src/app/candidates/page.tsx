@@ -643,7 +643,16 @@ function CandidatesTable({ jobId }: { jobId: string }) {
 function CandidatesPageContent() {
   const searchParams = useSearchParams();
   const jobId = searchParams.get("jobId");
+  const runId = searchParams.get("runId");
   const [jobTitle, setJobTitle] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!runId) return;
+    fetch(`/api/search-runs/${runId}/access`, { method: "POST" }).catch(() => {
+      // Best-effort: the dashboard's "Last Accessed By" simply won't
+      // reflect this visit if it fails. Never blocks viewing candidates.
+    });
+  }, [runId]);
 
   useEffect(() => {
     if (!jobId) {

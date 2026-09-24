@@ -63,6 +63,7 @@ function makeCandidates(count: number): BatchMatchCandidate[] {
       experience_years: 5,
       summary: null,
     },
+    searchRunId: null,
   }));
 }
 

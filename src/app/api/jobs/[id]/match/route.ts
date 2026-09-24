@@ -36,7 +36,7 @@ export const POST = withErrorHandling(async (_request: Request, { params }: Rout
 
   const { data: linked, error: linkError } = await supabase
     .from("job_candidates")
-    .select("candidate_id, candidates(*)")
+    .select("candidate_id, search_run_id, candidates(*)")
     .eq("job_id", jobId);
 
   if (linkError) {
@@ -57,6 +57,7 @@ export const POST = withErrorHandling(async (_request: Request, { params }: Rout
     candidateId: row.candidate_id,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     input: candidateRowToMatchingInput(row.candidates as any),
+    searchRunId: (row as { search_run_id: string | null }).search_run_id,
   }));
 
   const summary = await runBatchMatch(supabase, provider, jobId, jobInput, batchInput);

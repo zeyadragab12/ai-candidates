@@ -209,7 +209,7 @@ async function processSearchRun(
   let jobCandidatesLinkError: string | null = null;
   if (persisted.length > 0) {
     const { error } = await supabase.from("job_candidates").upsert(
-      persisted.map((p) => ({ job_id: jobId, candidate_id: p.id })),
+      persisted.map((p) => ({ job_id: jobId, candidate_id: p.id, search_run_id: runId })),
       { onConflict: "job_id,candidate_id", ignoreDuplicates: true },
     );
     if (error) jobCandidatesLinkError = "Failed to link some candidates to this job.";
@@ -304,6 +304,8 @@ export const POST = withErrorHandling(async (
       job_id: jobId,
       provider,
       status: "pending",
+      created_by: auth.user.id,
+      created_by_email: auth.user.email,
     })
     .select()
     .single();
