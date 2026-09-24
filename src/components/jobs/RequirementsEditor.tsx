@@ -188,8 +188,15 @@ export function RequirementsEditor({ value, onChange }: RequirementsEditorProps)
               id="ra-location"
               value={value.location}
               onChange={(e) => updateField("location", e.target.value)}
+              placeholder="e.g. Cairo, Egypt — leave blank to search globally"
               className="bg-white text-sm h-9"
             />
+            <p className="text-[11px] text-slate-500 leading-snug">
+              Biases candidate search results toward this place. Clear it (or use a real city/
+              country) for a remote or international role — values like &quot;Remote&quot; or
+              &quot;Global&quot; are ignored automatically, but a leftover real place name from a
+              template will still skew results toward it.
+            </p>
           </div>
 
           <div className="flex flex-col gap-1.5">

@@ -1,4 +1,4 @@
-import { Briefcase, Plus, UserCheck, Target, Users, Activity } from "lucide-react";
+import { Briefcase, Plus, UserCheck, Target, Users, Activity, Clock } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -7,6 +7,7 @@ import { PipelineChart } from "@/components/dashboard/pipeline-chart";
 import { ScoreDistributionChart } from "@/components/dashboard/score-distribution-chart";
 import { SourcingTable } from "@/components/dashboard/sourcing-table";
 import { StatCard } from "@/components/dashboard/stat-card";
+import { TodaysCandidates } from "@/components/dashboard/todays-candidates";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -37,6 +38,8 @@ export default async function DashboardPage() {
     pipelineCounts,
     unifiedRows,
     matchScores,
+    todaysCandidatesCount,
+    todaysCandidates,
     loadError,
   } = await getDashboardData(supabase, user.id);
 
@@ -134,18 +137,19 @@ export default async function DashboardPage() {
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard label="Active Jobs" value={totalJobs} icon={Briefcase} tone="indigo" />
           <StatCard label="Total Candidates" value={totalCandidates} icon={Users} tone="sky" />
+                    <StatCard
+            label="Average Match Quality"
+            value={averageMatchQuality !== null ? `${averageMatchQuality}%` : "No evaluated files yet"}
+            icon={Target}
+            tone="emerald"
+          />
           <StatCard
             label="Shortlisted Talent"
             value={shortlistedCandidates}
             icon={UserCheck}
             tone="amber"
           />
-          <StatCard
-            label="Average Match Quality"
-            value={averageMatchQuality !== null ? `${averageMatchQuality}%` : "No evaluated files yet"}
-            icon={Target}
-            tone="emerald"
-          />
+
         </div>
 
         {/* Charts Section */}
@@ -195,6 +199,27 @@ export default async function DashboardPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Today's Searched Candidates */}
+        <Card className="shadow-sm border-slate-200">
+          <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-slate-100">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-900">
+                <Clock className="h-4 w-4 text-indigo-600" />
+                Today&apos;s Searched Candidates
+              </CardTitle>
+              <CardDescription className="text-xs text-slate-500">
+                Candidates you&apos;ve sourced so far today
+              </CardDescription>
+            </div>
+            <Badge tone={todaysCandidatesCount > 0 ? "good" : "neutral"}>
+              {todaysCandidatesCount} today
+            </Badge>
+          </CardHeader>
+          <CardContent className="pt-4">
+            <TodaysCandidates candidates={todaysCandidates} />
+          </CardContent>
+        </Card>
 
         {/* Sourcing Files */}
         <Card className="shadow-sm border-slate-200">

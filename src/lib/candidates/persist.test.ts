@@ -20,11 +20,23 @@ type Filter =
   | { op: "is"; col: string; val: unknown }
   | { op: "ilike"; col: string; val: string };
 
+/** Mirrors real Postgres ILIKE closely enough for these tests: a pattern
+ * wrapped in `%...%` is a case-insensitive substring match, otherwise it's
+ * a case-insensitive exact match. */
+function matchesIlike(value: unknown, pattern: string): boolean {
+  const haystack = String(value ?? "").toLowerCase();
+  const needle = pattern.toLowerCase();
+  if (needle.startsWith("%") && needle.endsWith("%")) {
+    return haystack.includes(needle.slice(1, -1));
+  }
+  return haystack === needle;
+}
+
 function matchesFilters(row: FakeRow, filters: Filter[]): boolean {
   return filters.every((f) => {
     if (f.op === "eq") return row[f.col] === f.val;
     if (f.op === "is") return (row[f.col] ?? null) === f.val;
-    return String(row[f.col] ?? "").toLowerCase() === f.val.toLowerCase();
+    return matchesIlike(row[f.col], f.val);
   });
 }
 
@@ -53,6 +65,14 @@ function createFakeSupabase() {
             async maybeSingle() {
               const match = rows.find((r) => matchesFilters(r, filters));
               return { data: match ?? null, error: null };
+            },
+            // Real supabase-js query builders are themselves awaitable
+            // (thenable), returning every matching row as an array when
+            // neither .single() nor .maybeSingle() is chained — used by
+            // findExisting's name+company lookup, which filters
+            // company-suffix variants in JS after fetching by name alone.
+            then(resolve: (result: { data: FakeRow[]; error: null }) => void) {
+              resolve({ data: rows.filter((r) => matchesFilters(r, filters)), error: null });
             },
           };
           return builder;
@@ -264,6 +284,57 @@ describe("persistCandidates", () => {
     ]);
 
     expect(supabase.rows[0].headline).toBe("Original Headline");
+  });
+
+  it("cross-run/cross-job: re-finds an already-persisted LinkedIn candidate discovered via a different country subdomain (BEFORE this change: created a duplicate row)", async () => {
+    const supabase = createFakeSupabase();
+    await persistCandidates(supabase, USER_ID, [
+      makeCandidate({
+        name: "Amina Hassan",
+        profile_url: "https://www.linkedin.com/in/amina-hassan",
+      }),
+    ]);
+
+    // A later search run — for the same or a different job, findExisting is
+    // scoped only to the user, not a job — surfaces the same person via a
+    // country-subdomain variant of the same profile URL.
+    const secondRun = await persistCandidates(supabase, USER_ID, [
+      makeCandidate({
+        name: "Amina Hassan",
+        profile_url: "https://eg.linkedin.com/in/amina-hassan/?trk=public_profile",
+      }),
+    ]);
+
+    expect(secondRun).toEqual([{ id: "id-1", isNew: false }]);
+    expect(supabase.rows).toHaveLength(1);
+  });
+
+  it("cross-run: re-finds an already-persisted candidate whose company name now has a legal-entity suffix (BEFORE this change: created a duplicate row)", async () => {
+    const supabase = createFakeSupabase();
+    await persistCandidates(supabase, USER_ID, [
+      makeCandidate({ name: "Sara Youssef", current_company: "Delta Digital" }),
+    ]);
+
+    const secondRun = await persistCandidates(supabase, USER_ID, [
+      makeCandidate({ name: "Sara Youssef", current_company: "Delta Digital Inc." }),
+    ]);
+
+    expect(secondRun).toEqual([{ id: "id-1", isNew: false }]);
+    expect(supabase.rows).toHaveLength(1);
+  });
+
+  it("still keeps two different candidates who share a name but work at genuinely different companies as 2 rows (avoids false-positive merges)", async () => {
+    const supabase = createFakeSupabase();
+    await persistCandidates(supabase, USER_ID, [
+      makeCandidate({ name: "Mohamed Ahmed", current_company: "Acme Inc." }),
+    ]);
+
+    const secondRun = await persistCandidates(supabase, USER_ID, [
+      makeCandidate({ name: "Mohamed Ahmed", current_company: "Globex Inc." }),
+    ]);
+
+    expect(secondRun[0]?.isNew).toBe(true);
+    expect(supabase.rows).toHaveLength(2);
   });
 
   it("falls back to the existing row when a race causes a unique-violation on insert", async () => {

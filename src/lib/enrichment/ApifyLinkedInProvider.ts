@@ -1,4 +1,7 @@
 import { isRetryableStatus, withRetry } from "@/lib/retry";
+import { extractLinkedInSlug } from "@/lib/candidates/linkedin";
+
+export { extractLinkedInSlug };
 
 const APIFY_API_BASE = "https://api.apify.com/v2";
 
@@ -66,20 +69,6 @@ interface HarvestApiLinkedInItem {
   skills?: { name?: string }[];
   experience?: { duration?: string }[];
   photo?: string;
-}
-
-/**
- * Extracts the `/in/<slug>` identifier LinkedIn uses to identify a profile,
- * regardless of protocol, country subdomain (SerpApi commonly returns
- * eg.linkedin.com, sa.linkedin.com, etc. for non-US profiles — confirmed
- * against real search results), trailing slash, or query string. This is
- * the only reliable join key between a SerpApi result and Apify's dataset
- * item: Apify always canonicalizes linkedinUrl to www.linkedin.com, so
- * matching on the raw URL string silently drops every non-www result.
- */
-export function extractLinkedInSlug(url: string): string | null {
-  const match = url.match(/linkedin\.com\/in\/([^/?#]+)/i);
-  return match?.[1] ? decodeURIComponent(match[1]).toLowerCase() : null;
 }
 
 export interface EnrichedLinkedInProfile {
@@ -255,6 +244,18 @@ export class ApifyLinkedInProvider {
    * couldn't resolve (private/removed profiles, etc.) are simply absent
    * from the map — never a fabricated empty entry.
    *
+   * The key is ALWAYS derived from the URL slug, never from the actor's
+   * `publicIdentifier` field, even though the latter is usually identical.
+   * Every caller (see src/app/api/jobs/[id]/search/route.ts) looks results
+   * up by re-running extractLinkedInSlug() over the candidate's own
+   * profile_url — if this map were ever keyed by publicIdentifier instead,
+   * a candidate whose publicIdentifier differs from their URL slug would
+   * either silently fail to enrich, or — worse — collide with a different
+   * candidate that happens to share that key, leaking one profile's real
+   * data onto an unrelated candidate's record. Keying consistently by the
+   * same slug on both the write and read side makes that class of bug
+   * structurally impossible.
+   *
    * Requests are split into chunks of at most MAX_PROFILES_PER_RUN (one
    * actor run each, sequentially — not parallel, to stay well under Apify's
    * concurrency limits on a free-tier account). One chunk failing (network
@@ -287,7 +288,7 @@ export class ApifyLinkedInProvider {
         }
         const mapped = mapItem(item);
         if (!mapped) continue;
-        const key = item.publicIdentifier?.toLowerCase() || extractLinkedInSlug(mapped.profileUrl);
+        const key = extractLinkedInSlug(mapped.profileUrl);
         if (key) result.set(key, mapped);
       }
     }

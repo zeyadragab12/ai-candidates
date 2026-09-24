@@ -1,7 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { getCandidateIdentityKey } from "@/lib/candidates/dedupe";
+import { getCandidateIdentityKey, normalizeCompanyForMatching } from "@/lib/candidates/dedupe";
+import { extractLinkedInSlug } from "@/lib/candidates/linkedin";
 import type { NormalizedCandidate } from "@/types/candidate";
+
+/** Escapes Postgres ILIKE wildcard characters so a slug/name with a literal
+ * `%` or `_` is matched literally rather than as a pattern. */
+function escapeIlikePattern(value: string): string {
+  return value.replace(/[%_]/g, (match) => `\\${match}`);
+}
 
 const UNIQUE_VIOLATION = "23505";
 
@@ -80,33 +87,73 @@ function toRow(candidate: NormalizedCandidate, userId: string, rawData: unknown)
   };
 }
 
+const EXISTING_CANDIDATE_COLUMNS =
+  "id, headline, company, location, summary, skills, experience_years, profile_image_url";
+
+/**
+ * Finds a previously persisted candidate matching this identity, across
+ * every earlier search run and job for this user — not just the run
+ * currently being processed. persistCandidates() is the single choke point
+ * every search run's results pass through, and it's never scoped to a
+ * job_id or run_id, so this lookup is inherently cross-run and cross-job
+ * already; the identity rules below just make it catch more real
+ * duplicates within that same scope.
+ */
 async function findExisting(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<any, any, any>,
   userId: string,
   candidate: NormalizedCandidate,
 ): Promise<ExistingCandidateRow | null> {
-  let query = supabase
-    .from("candidates")
-    .select(
-      "id, headline, company, location, summary, skills, experience_years, profile_image_url",
-    )
-    .eq("user_id", userId);
-
   if (candidate.profile_url) {
-    query = query.eq("profile_url", candidate.profile_url);
-  } else if (candidate.name && candidate.current_company) {
-    query = query
-      .is("profile_url", null)
-      .ilike("name", candidate.name.trim())
-      .ilike("company", candidate.current_company.trim());
-  } else {
-    return null;
+    const linkedInSlug = extractLinkedInSlug(candidate.profile_url);
+
+    // A LinkedIn profile is matched by its /in/<slug> identifier rather
+    // than the literal URL, so a candidate persisted from one search run's
+    // www.linkedin.com/in/x and re-found by a later run as
+    // eg.linkedin.com/in/x/?trk=y resolve to the same existing row instead
+    // of a duplicate insert.
+    const query = linkedInSlug
+      ? supabase
+          .from("candidates")
+          .select(EXISTING_CANDIDATE_COLUMNS)
+          .eq("user_id", userId)
+          .ilike("profile_url", `%/in/${escapeIlikePattern(linkedInSlug)}%`)
+      : supabase
+          .from("candidates")
+          .select(EXISTING_CANDIDATE_COLUMNS)
+          .eq("user_id", userId)
+          .eq("profile_url", candidate.profile_url);
+
+    const { data, error } = await query.maybeSingle();
+    if (error) throw error;
+    return data;
   }
 
-  const { data, error } = await query.maybeSingle();
-  if (error) throw error;
-  return data;
+  if (candidate.name && candidate.current_company) {
+    // Fetched by name alone (name has no reliable suffix/variant issue the
+    // way company legal-entity names do), then filtered in JS by
+    // normalizeCompanyForMatching so "Acme Inc." and "Acme" resolve to the
+    // same existing row — a plain DB-level ilike can't express that
+    // suffix-stripping rule.
+    const { data, error } = await supabase
+      .from("candidates")
+      .select(`${EXISTING_CANDIDATE_COLUMNS}, name`)
+      .eq("user_id", userId)
+      .is("profile_url", null)
+      .ilike("name", candidate.name.trim());
+    if (error) throw error;
+
+    const targetCompany = normalizeCompanyForMatching(candidate.current_company);
+    const rows = (data ?? []) as (ExistingCandidateRow & { name: string | null })[];
+    return (
+      rows.find(
+        (row) => row.company && normalizeCompanyForMatching(row.company) === targetCompany,
+      ) ?? null
+    );
+  }
+
+  return null;
 }
 
 export interface PersistedCandidate {

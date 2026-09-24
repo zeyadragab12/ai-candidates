@@ -1,7 +1,36 @@
+import { extractLinkedInSlug } from "@/lib/candidates/linkedin";
 import type { NormalizedCandidate } from "@/types/candidate";
 
-function normalizeForMatching(value: string): string {
-  return value.trim().toLowerCase().replace(/\s+/g, " ");
+// Legal-entity suffixes that don't change who the employer actually is
+// ("Acme Inc." and "Acme Inc" and "Acme" are the same company for identity
+// purposes). Stripped before comparing, never stored or displayed — this
+// only affects matching, not any field written to the candidate record.
+const COMPANY_SUFFIX_PATTERN =
+  /\b(inc|incorporated|llc|ltd|limited|co|corp|corporation|gmbh|plc|group|holdings|company)\b\.?/gi;
+
+function stripDiacritics(value: string): string {
+  return value.normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
+export function normalizeForMatching(value: string): string {
+  return stripDiacritics(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[.,]/g, "")
+    .replace(/\s+/g, " ");
+}
+
+/**
+ * Normalizes a company name for identity matching: strips diacritics,
+ * punctuation, and common legal-entity suffixes so "Acme Inc.", "ACME
+ * INC", and "Acme" are recognized as the same employer. This widens exact
+ * matching (still no fuzzy/edit-distance guessing — a typo'd company name
+ * still won't match), keeping the false-positive-merge risk unchanged.
+ * Exported so persist.ts's DB-level lookup uses the identical rule.
+ */
+export function normalizeCompanyForMatching(value: string): string {
+  const withoutSuffix = normalizeForMatching(value).replace(COMPANY_SUFFIX_PATTERN, "");
+  return withoutSuffix.replace(/\s+/g, " ").trim() || normalizeForMatching(value);
 }
 
 function normalizeUrl(url: string): string {
@@ -17,15 +46,28 @@ function normalizeUrl(url: string): string {
  * callers (e.g. persistence) that need to match a candidate against
  * existing records using the identical rules. Returns null when there's no
  * reliable identity signal.
+ *
+ * A LinkedIn profile_url is matched by its `/in/<slug>` identifier (see
+ * extractLinkedInSlug), not the raw URL string — a candidate found via
+ * www.linkedin.com/in/x in one search run and eg.linkedin.com/in/x/?trk=y
+ * in another (SerpApi returns different country subdomains for the same
+ * profile) is the same person and must resolve to the same identity key.
+ * Any other profile_url (GitHub, a company career site, etc.) falls back to
+ * generic URL normalization, since there's no equivalent slug convention
+ * to rely on there.
  */
 export function getCandidateIdentityKey(
   candidate: NormalizedCandidate,
 ): string | null {
   if (candidate.profile_url) {
+    const linkedInSlug = extractLinkedInSlug(candidate.profile_url);
+    if (linkedInSlug) {
+      return `linkedin:${linkedInSlug}`;
+    }
     return `url:${normalizeUrl(candidate.profile_url)}`;
   }
   if (candidate.name && candidate.current_company) {
-    return `name-company:${normalizeForMatching(candidate.name)}|${normalizeForMatching(candidate.current_company)}`;
+    return `name-company:${normalizeForMatching(candidate.name)}|${normalizeCompanyForMatching(candidate.current_company)}`;
   }
   return null;
 }

@@ -1,15 +1,23 @@
-const STAGE_ORDER = ["New", "Reviewed", "Shortlisted", "Contacted", "Rejected"] as const;
+const STAGE_ORDER = [
+  "New",
+  "Reviewed",
+  "Shortlisted",
+  "Contacted",
+  "Hired",
+  "Rejected",
+] as const;
 
 // Ordinal ramp for the four "in progress" stages (lightest→darkest, business
 // order — furthest along the happy path gets the darkest step), per
-// dataviz skill guidance for funnel/tier ordinal encoding. Rejected is a
-// true status color (critical/red), not a step in the ramp, since it's a
-// terminal exit rather than progress.
+// dataviz skill guidance for funnel/tier ordinal encoding. Hired and
+// Rejected are true status colors (success green / critical red), not
+// steps in the ramp, since they're terminal exits rather than progress.
 const STAGE_COLOR: Record<(typeof STAGE_ORDER)[number], string> = {
   New: "#86b6ef",
   Reviewed: "#5598e7",
   Shortlisted: "#2a78d6",
   Contacted: "#1c5cab",
+  Hired: "#059669",
   Rejected: "#d03b3b",
 };
 

@@ -107,6 +107,51 @@ describe("ApifyLinkedInProvider", () => {
     });
   });
 
+  it("keys results by URL slug, not publicIdentifier, so a mismatched publicIdentifier never causes cross-contamination between two different candidates", async () => {
+    // Regression test: two distinct real candidates, each with a
+    // publicIdentifier that does NOT match their own URL slug, and — the
+    // dangerous case — each other's publicIdentifier happens to collide
+    // with the other's slug. If the map were ever keyed by
+    // publicIdentifier, candidate A's real data (Acme Corp) would be
+    // returned under candidate B's slug lookup key, and vice versa.
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [
+        {
+          linkedinUrl: "https://www.linkedin.com/in/candidate-a-slug",
+          publicIdentifier: "candidate-b-slug",
+          firstName: "Candidate",
+          lastName: "A",
+          currentPosition: [{ companyName: "Acme Corp" }],
+        },
+        {
+          linkedinUrl: "https://www.linkedin.com/in/candidate-b-slug",
+          publicIdentifier: "candidate-a-slug",
+          firstName: "Candidate",
+          lastName: "B",
+          currentPosition: [{ companyName: "Globex Inc" }],
+        },
+      ],
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = new ApifyLinkedInProvider("test-token", "some-actor");
+    const result = await provider.enrichProfiles([
+      "https://www.linkedin.com/in/candidate-a-slug",
+      "https://www.linkedin.com/in/candidate-b-slug",
+    ]);
+
+    // A caller looks these up by re-running extractLinkedInSlug() over each
+    // candidate's OWN profile_url — this must return that candidate's own
+    // real data, never the other candidate's.
+    expect(result.get("candidate-a-slug")?.currentCompany).toBe("Acme Corp");
+    expect(result.get("candidate-b-slug")?.currentCompany).toBe("Globex Inc");
+    // The publicIdentifier values must never appear as map keys at all.
+    expect(result.has("candidate-a-slug")).toBe(true);
+    expect(result.has("candidate-b-slug")).toBe(true);
+    expect(result.size).toBe(2);
+  });
+
   it("skips dataset items with no resolvable profile URL", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

@@ -16,6 +16,15 @@ export interface UnifiedSourcingRow {
   createdAt: string;
 }
 
+export interface TodaysCandidateRow {
+  id: string;
+  name: string | null;
+  headline: string | null;
+  source: string;
+  jobTitle: string | null;
+  createdAt: string;
+}
+
 export interface DashboardData {
   totalJobs: number;
   totalCandidates: number;
@@ -24,6 +33,8 @@ export interface DashboardData {
   pipelineCounts: Record<string, number>;
   unifiedRows: UnifiedSourcingRow[];
   matchScores: number[];
+  todaysCandidatesCount: number;
+  todaysCandidates: TodaysCandidateRow[];
   loadError: string | null;
 }
 
@@ -87,6 +98,8 @@ export async function getDashboardData(
   supabase: SupabaseClient<any, any, any>,
   currentUserId: string,
 ): Promise<DashboardData> {
+  const startOfTodayIso = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
+
   const [
     jobsCountRes,
     candidatesCountRes,
@@ -97,6 +110,8 @@ export async function getDashboardData(
     jobCandidatesRes,
     candidateViewsRes,
     searchRunAccessRes,
+    todaysCandidatesCountRes,
+    todaysCandidatesRes,
   ] = await Promise.all([
     supabase.from("jobs").select("*", { count: "exact", head: true }),
     supabase.from("candidates").select("*", { count: "exact", head: true }),
@@ -121,6 +136,21 @@ export async function getDashboardData(
       .from("search_run_access")
       .select("search_run_id, user_email, accessed_at")
       .order("accessed_at", { ascending: false }),
+    // Today's sourced candidates, scoped to the logged-in user (candidates
+    // are owned by user_id, same scoping every other candidate query in
+    // this app uses).
+    supabase
+      .from("candidates")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", currentUserId)
+      .gte("created_at", startOfTodayIso),
+    supabase
+      .from("candidates")
+      .select("id, name, headline, source, created_at, job_candidates(job_id, jobs(title))")
+      .eq("user_id", currentUserId)
+      .gte("created_at", startOfTodayIso)
+      .order("created_at", { ascending: false })
+      .limit(8),
   ]);
 
   const loadError =
@@ -130,7 +160,9 @@ export async function getDashboardData(
     matchScoresRes.error ||
     candidateStatusesRes.error ||
     searchRunsRes.error ||
-    jobCandidatesRes.error
+    jobCandidatesRes.error ||
+    todaysCandidatesCountRes.error ||
+    todaysCandidatesRes.error
       ? "Some dashboard data failed to load. Try refreshing the page."
       : null;
 
@@ -204,6 +236,26 @@ export async function getDashboardData(
     };
   });
 
+  interface TodaysCandidateQueryRow {
+    id: string;
+    name: string | null;
+    headline: string | null;
+    source: string;
+    created_at: string;
+    job_candidates: { job_id: string; jobs: { title: string } | null }[] | null;
+  }
+
+  const todaysCandidates: TodaysCandidateRow[] = (
+    (todaysCandidatesRes.data ?? []) as unknown as TodaysCandidateQueryRow[]
+  ).map((row) => ({
+    id: row.id,
+    name: row.name,
+    headline: row.headline,
+    source: row.source,
+    jobTitle: row.job_candidates?.[0]?.jobs?.title ?? null,
+    createdAt: row.created_at,
+  }));
+
   return {
     totalJobs,
     totalCandidates,
@@ -212,6 +264,8 @@ export async function getDashboardData(
     pipelineCounts,
     unifiedRows,
     matchScores,
+    todaysCandidatesCount: todaysCandidatesCountRes.count ?? 0,
+    todaysCandidates,
     loadError,
   };
 }

@@ -9,6 +9,8 @@ import { getEnrichmentProvider } from "@/lib/enrichment";
 import { extractLinkedInSlug } from "@/lib/enrichment/ApifyLinkedInProvider";
 import { normalizeCandidate } from "@/lib/candidates/normalize";
 import { dedupeCandidates, getCandidateIdentityKey } from "@/lib/candidates/dedupe";
+import { isImplausibleCompany, isImplausibleExperienceYears } from "@/lib/candidates/dataQuality";
+import { shouldApplyLocationBias } from "@/lib/candidates/locationBias";
 import { persistCandidates } from "@/lib/candidates/persist";
 import { withErrorHandling } from "@/lib/errors";
 import { getJobQueue } from "@/lib/jobs/queue";
@@ -166,6 +168,20 @@ async function processSearchRun(
     return;
   }
 
+  // Defensive validation layer: reject a company/experience value that
+  // implausibly matches our own recruiting company rather than ever
+  // displaying it on a candidate. Applied to every result (SerpApi
+  // title-parsing and Apify enrichment alike) right before normalization —
+  // a value dropped here is never guessed or replaced, just left absent
+  // like any other field the providers didn't actually give us.
+  allResults = allResults.map((result) => ({
+    ...result,
+    company: isImplausibleCompany(result.company) ? undefined : result.company,
+    experience_years: isImplausibleExperienceYears(result.experience_years)
+      ? undefined
+      : result.experience_years,
+  }));
+
   // Normalize + dedupe raw results, tracking which raw result each
   // normalized candidate came from so it can be stored as raw_data for
   // traceability (best-effort: for merged duplicates, this is the first
@@ -275,7 +291,13 @@ export const POST = withErrorHandling(async (
   if (!job.data) {
     return NextResponse.json({ error: "Job not found." }, { status: 404 });
   }
-  const jobLocation: string | null = job.data.location ?? null;
+  // Non-geographic values ("Remote", "Global", etc.) must never bias
+  // SerpApi's geo-targeted search — see shouldApplyLocationBias's doc
+  // comment. This is separate from job.location itself, which is left
+  // untouched (still shown/editable everywhere else).
+  const jobLocation: string | null = shouldApplyLocationBias(job.data.location)
+    ? job.data.location
+    : null;
 
   let body: unknown;
   try {
