@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import type { JobAnalysis } from "@/types/job-analysis";
 import { cn } from "@/lib/utils";
-import { EMPLOYMENT_TYPES, LOCATION_OPTIONS } from "@/lib/jobs/constants";
+import { COUNTRY_OPTIONS, EMPLOYMENT_TYPES, LOCATION_OPTIONS } from "@/lib/jobs/constants";
 
 // Radix Select can't use "" as an item value, so an unset location/employment
 // type is represented by this sentinel in the dropdown and translated back to
@@ -199,16 +199,13 @@ export function RequirementsEditor({ value, onChange }: RequirementsEditorProps)
               Location
             </label>
             <Select
-              value={value.location || UNSPECIFIED_VALUE}
-              onValueChange={(selected) =>
-                updateField("location", selected === UNSPECIFIED_VALUE ? "" : selected)
-              }
+              value={value.location || LOCATION_OPTIONS[0]}
+              onValueChange={(selected) => updateField("location", selected)}
             >
               <SelectTrigger id="ra-location" className="bg-white text-sm h-9">
                 <SelectValue placeholder="Select a location" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={UNSPECIFIED_VALUE}>Not specified</SelectItem>
                 {LOCATION_OPTIONS.map((location) => (
                   <SelectItem key={location} value={location}>
                     {location}
@@ -217,10 +214,35 @@ export function RequirementsEditor({ value, onChange }: RequirementsEditorProps)
               </SelectContent>
             </Select>
             <p className="text-[11px] text-slate-500 leading-snug">
-              Restricts candidate search results to profiles mentioning this place. Choose
-              &quot;Not specified&quot;, &quot;Remote&quot;, or &quot;Global&quot; for a role open
-              to any location — those are ignored automatically when searching.
+              Every role sources nationwide in Egypt. Pick a specific city below to target search
+              results more precisely.
             </p>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-slate-700" htmlFor="ra-country">
+              Country <span className="text-red-600">*</span>
+            </label>
+            <Select
+              value={value.country}
+              onValueChange={(selected) => updateField("country", selected)}
+            >
+              <SelectTrigger id="ra-country" className="bg-white text-sm h-9">
+                <SelectValue placeholder="Select a city" />
+              </SelectTrigger>
+              <SelectContent>
+                {COUNTRY_OPTIONS.map((country) => (
+                  <SelectItem key={country} value={country}>
+                    {country}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {!value.country && (
+              <p role="alert" className="text-[11px] font-medium text-red-600">
+                Country is required.
+              </p>
+            )}
           </div>
 
           <div className="flex flex-col gap-1.5">

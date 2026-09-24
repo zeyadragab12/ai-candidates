@@ -12,7 +12,8 @@ function makeAnalysis(overrides: Partial<JobAnalysis> = {}): JobAnalysis {
   return {
     job_title: "Frontend React Developer",
     seniority: "Mid",
-    location: "Cairo, Egypt",
+    location: "Egypt",
+    country: "Cairo",
     employment_type: "Full-time",
     required_skills: ["React", "TypeScript", "Next.js"],
     preferred_skills: [],
@@ -80,7 +81,7 @@ describe("buildSearchQueryGenerationPrompt", () => {
     const prompt = buildSearchQueryGenerationPrompt(makeAnalysis());
     expect(prompt).toContain("Frontend React Developer");
     expect(prompt).toContain("React, TypeScript, Next.js");
-    expect(prompt).toContain("Cairo, Egypt");
+    expect(prompt).toContain("Location: Egypt");
   });
 
   it("handles missing location/seniority without crashing", () => {

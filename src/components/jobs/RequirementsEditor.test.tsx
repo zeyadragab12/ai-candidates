@@ -11,7 +11,8 @@ function makeAnalysis(overrides: Partial<JobAnalysis> = {}): JobAnalysis {
   return {
     job_title: "Frontend Developer",
     seniority: "Mid",
-    location: "Cairo",
+    location: "Egypt",
+    country: "Cairo",
     employment_type: "Full-time",
     required_skills: ["React", "TypeScript"],
     preferred_skills: [],

@@ -5,6 +5,7 @@ export const jobCreateSchema = z.object({
   description: z.string().trim().min(1, "Description is required."),
   company_id: z.string().uuid("Select a company.").nullable().default(null),
   location: z.string().trim().default(""),
+  country: z.string().trim().min(1, "Country is required."),
   employment_type: z.string().trim().default(""),
   work_arrangement: z.string().trim().default(""),
   seniority: z.string().trim().default(""),

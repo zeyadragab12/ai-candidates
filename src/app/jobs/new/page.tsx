@@ -125,6 +125,7 @@ export default function NewJobPage() {
   if (!companyId) jobDetailsErrors.company = "Company is required.";
   if (!employmentType) jobDetailsErrors.employmentType = "Employment type is required.";
   if (!workArrangement) jobDetailsErrors.workArrangement = "Work arrangement is required.";
+  if (analysis && !analysis.country) jobDetailsErrors.country = "Country is required.";
   const isJobDetailsValid = Object.keys(jobDetailsErrors).length === 0;
 
   function markAllFieldsTouched() {
@@ -226,7 +227,9 @@ export default function NewJobPage() {
         return;
       }
 
-      setAnalysis(data);
+      // Every job sources nationwide in Egypt now — location isn't a real
+      // choice, only the "Country" (city) field the recruiter picks below is.
+      setAnalysis({ ...data, location: "Egypt" });
       if (!title && data.job_title) setTitle(data.job_title);
       if (!employmentType && data.employment_type) setEmploymentType(data.employment_type);
       toast.success("Requirements successfully extracted from job spec!", "Analysis Complete");
@@ -339,6 +342,7 @@ export default function NewJobPage() {
           description,
           company_id: companyId,
           location: analysis.location,
+          country: analysis.country,
           employment_type: employmentType || analysis.employment_type,
           work_arrangement: workArrangement,
           seniority: analysis.seniority,
@@ -879,7 +883,7 @@ export default function NewJobPage() {
                 {!isJobDetailsValid && (
                   <p className="mt-3 text-xs text-amber-300">
                     Complete all required job details (title, company, employment type, work
-                    arrangement) above to continue.
+                    arrangement, country) above to continue.
                   </p>
                 )}
 

@@ -4,6 +4,11 @@ export const jobAnalysisSchema = z.object({
   job_title: z.string().min(1),
   seniority: z.string().default(""),
   location: z.string().default(""),
+  // Recruiter-picked city (Cairo/Alexandria/Giza/Suez), never AI-extracted —
+  // drives the quoted location phrase in generated search queries and the
+  // SerpApi location param, while `location` stays the fixed "Egypt"
+  // nationwide value. Required at the API layer (see jobCreateSchema).
+  country: z.string().default(""),
   employment_type: z.string().default(""),
   required_skills: z.array(z.string()).default([]),
   preferred_skills: z.array(z.string()).default([]),

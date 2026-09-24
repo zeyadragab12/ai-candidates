@@ -63,20 +63,17 @@ export const POST = withErrorHandling(async (request: Request) => {
     previousQueries = (data ?? []).map((row) => row.query as string);
   }
 
-  // A raw location value straight from a recruiter can be a list of cities
-  // or other non-canonical text ("Egypt; Cairo, Giza, Mansoura, Alex").
-  // Quoting that verbatim as a literal search phrase asks Google to match
-  // text no real profile will ever contain — confirmed live to make Google
-  // silently drop the query's actual constraints and return unrelated
-  // noise instead of erroring. Clean it the same way the SerpApi location
-  // param is cleaned (see resolveCleanLocationText) before it ever reaches
-  // the prompt. Empty/non-geographic values (no location, "Remote",
-  // "Global", ...) default to "Egypt" — a single clean, country-level value
-  // that's already safe to quote and matches resolveEgyptSearchLocation's
-  // own nationwide handling — rather than leaving the search unscoped.
+  // The quoted location phrase in the generated query should be the specific
+  // city the recruiter picked (jobAnalysis.country — Cairo/Alexandria/Giza/
+  // Suez), not the fixed nationwide "Egypt" value `location` always holds
+  // now. A city from COUNTRY_OPTIONS is already a single clean value safe to
+  // quote as-is. resolveCleanLocationText/"Egypt" remain as a defensive
+  // fallback only — see its doc comment for why an uncleaned, multi-value
+  // location string must never be quoted verbatim (confirmed live to make
+  // Google silently drop the query's real constraints and return noise).
   const cleanedJobAnalysis = {
     ...jobAnalysis,
-    location: resolveCleanLocationText(jobAnalysis.location) ?? "Egypt",
+    location: jobAnalysis.country || resolveCleanLocationText(jobAnalysis.location) || "Egypt",
   };
 
   const provider = getAIProvider();

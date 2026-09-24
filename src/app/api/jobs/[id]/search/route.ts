@@ -306,7 +306,7 @@ export const POST = withErrorHandling(async (
 
   const job = await supabase
     .from("jobs")
-    .select("id, location")
+    .select("id, location, country")
     .eq("id", jobId)
     .maybeSingle();
 
@@ -319,8 +319,14 @@ export const POST = withErrorHandling(async (
   // Non-geographic values ("Remote", "Global", etc.) must never bias
   // SerpApi's geo-targeted search — see resolveEgyptSearchLocation's doc
   // comment. This is separate from job.location itself, which is left
-  // untouched (still shown/editable everywhere else).
+  // untouched (still shown/editable everywhere else). job.country (the
+  // specific city, e.g. "Cairo") overrides the `location` param when set,
+  // narrowing the nationwide "Egypt" targeting down to that city while
+  // keeping the same gl=eg/google_domain country-level params.
   const searchLocation = resolveEgyptSearchLocation(job.data.location);
+  if (job.data.country) {
+    searchLocation.location = job.data.country;
+  }
 
   let body: unknown;
   try {
