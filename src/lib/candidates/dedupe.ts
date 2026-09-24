@@ -88,6 +88,7 @@ function mergeCandidate(
     summary: existing.summary ?? incoming.summary,
     skills: Array.from(new Set([...existing.skills, ...incoming.skills])),
     experience_years: existing.experience_years ?? incoming.experience_years,
+    location_verified: existing.location_verified ?? incoming.location_verified ?? null,
   };
 }
 

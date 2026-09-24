@@ -335,4 +335,39 @@ describe("SerpApiProvider", () => {
     expect(calledUrl.searchParams.get("num")).toBe("10");
     expect(calledUrl.searchParams.get("start")).toBe("10");
   });
+
+  it("includes gl and google_domain when a country code is given", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ organic_results: [] }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = new SerpApiProvider("test-key");
+    await provider.searchCandidates({
+      query: "React Developer",
+      location: "Egypt",
+      countryCode: "eg",
+      googleDomain: "google.com.eg",
+    });
+
+    const calledUrl = new URL(fetchMock.mock.calls[0]?.[0]);
+    expect(calledUrl.searchParams.get("gl")).toBe("eg");
+    expect(calledUrl.searchParams.get("google_domain")).toBe("google.com.eg");
+  });
+
+  it("omits gl and google_domain when no country code is given", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ organic_results: [] }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = new SerpApiProvider("test-key");
+    await provider.searchCandidates({ query: "React Developer" });
+
+    const calledUrl = new URL(fetchMock.mock.calls[0]?.[0]);
+    expect(calledUrl.searchParams.has("gl")).toBe(false);
+    expect(calledUrl.searchParams.has("google_domain")).toBe(false);
+  });
 });

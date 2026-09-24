@@ -27,6 +27,7 @@ Respond with raw JSON only. Do not wrap the JSON in markdown code fences.`;
 
 export function buildSearchQueryGenerationPrompt(
   jobAnalysis: JobAnalysis,
+  previousQueries: string[] = [],
 ): string {
   return `Generate 2 to 4 X-ray boolean search query variants for finding INDIVIDUAL candidates matching these requirements — real people's profile pages, not companies, job ads, or agencies. Respond as JSON matching exactly this shape:
 
@@ -41,29 +42,69 @@ Required Skills: ${jobAnalysis.required_skills.join(", ") || "(none listed)"}
 Preferred Skills: ${jobAnalysis.preferred_skills.join(", ") || "(none listed)"}
 Keywords: ${jobAnalysis.keywords.join(", ") || "(none listed)"}
 
+Previously generated queries for this job (do NOT repeat these or trivially reword them — use different skill/keyword combinations and different title-synonym groupings than every query below):
+${previousQueries.length > 0 ? previousQueries.map((query) => `- ${query}`).join("\n") : "(none yet)"}
+
 Example of the expected structure (site group, then OR'd quoted title synonyms in parentheses, then quoted skill/keyword phrases, then the location as a trailing quoted phrase):
 (site:linkedin.com/in OR site:linkedin.com/pub) ("Transformation Excellence Senior Specialist" OR "Operational Excellence Senior Specialist" OR "Process Improvement Specialist" OR "Quality Assurance Senior Specialist") "root cause analysis" "CAPA" "Egypt"
 
 Never generate a query without the (site:linkedin.com/in OR site:linkedin.com/pub) group, never generate a query without the OR'd title group in parentheses, never drop the location when one is given, and never generate a generic query such as "React developers Egypt" or "React companies Egypt".`;
 }
 
+function normalizeQueryForDedup(query: string): string {
+  return query.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+// Bounded: each retry is a full extra AI call, and this is meant as a
+// backstop for the AI slipping up despite the prior-queries context, not the
+// primary mechanism for avoiding repeats — keep the worst-case cost small.
+const MAX_REGENERATION_ATTEMPTS = 2;
+
+/**
+ * `previousQueries` should be every query already generated for this job
+ * (e.g. from the search_queries table), so a recruiter re-running "Generate
+ * Queries" on the same job gets genuinely different variants instead of
+ * near-identical ones. The prior-queries context in the prompt is the main
+ * mechanism; the post-response dedup below is a backstop for when the AI
+ * slips one through anyway — a duplicate is dropped and, if that leaves
+ * fewer than 2 queries, a bounded number of extra generation attempts fill
+ * the gap. If every attempt collides entirely with history (pathological),
+ * the last attempt's raw output is returned rather than nothing.
+ */
 export async function generateSearchQueries(
   jobAnalysis: JobAnalysis,
   provider: AIProvider,
+  previousQueries: string[] = [],
 ): Promise<string[]> {
-  const prompt = buildSearchQueryGenerationPrompt(jobAnalysis);
+  const seenNormalized = new Set(previousQueries.map(normalizeQueryForDedup));
+  const accepted: string[] = [];
+  let lastRawQueries: string[] = [];
 
-  const rawResponse = await provider.generateText(prompt, {
-    systemInstruction: SYSTEM_INSTRUCTION,
-    temperature: 0.4,
-    jsonMode: true,
-  });
+  for (
+    let attempt = 0;
+    attempt <= MAX_REGENERATION_ATTEMPTS && accepted.length < 2;
+    attempt++
+  ) {
+    const prompt = buildSearchQueryGenerationPrompt(jobAnalysis, previousQueries);
+    const rawResponse = await provider.generateText(prompt, {
+      systemInstruction: SYSTEM_INSTRUCTION,
+      temperature: 0.5,
+      jsonMode: true,
+    });
+    const result = parseJsonResponse(
+      rawResponse,
+      searchQueryGenerationSchema,
+      "search-query-generation",
+    );
+    lastRawQueries = result.search_queries;
 
-  const result = parseJsonResponse(
-    rawResponse,
-    searchQueryGenerationSchema,
-    "search-query-generation",
-  );
+    for (const query of result.search_queries) {
+      const normalized = normalizeQueryForDedup(query);
+      if (seenNormalized.has(normalized)) continue;
+      seenNormalized.add(normalized);
+      accepted.push(query);
+    }
+  }
 
-  return result.search_queries;
+  return accepted.length > 0 ? accepted : lastRawQueries;
 }

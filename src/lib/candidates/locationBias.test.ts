@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { shouldApplyLocationBias } from "./locationBias";
+import { resolveEgyptSearchLocation, shouldApplyLocationBias } from "./locationBias";
 
 describe("shouldApplyLocationBias", () => {
   it("applies bias for a real geographic value", () => {
@@ -24,5 +24,40 @@ describe("shouldApplyLocationBias", () => {
     expect(shouldApplyLocationBias("Anywhere")).toBe(false);
     expect(shouldApplyLocationBias("N/A")).toBe(false);
     expect(shouldApplyLocationBias("TBD")).toBe(false);
+  });
+});
+
+describe("resolveEgyptSearchLocation", () => {
+  it("returns no params for a non-geographic or empty location", () => {
+    expect(resolveEgyptSearchLocation("Remote")).toEqual({});
+    expect(resolveEgyptSearchLocation(null)).toEqual({});
+    expect(resolveEgyptSearchLocation("")).toEqual({});
+  });
+
+  it("searches at country granularity for a bare 'Egypt' value", () => {
+    expect(resolveEgyptSearchLocation("Egypt")).toEqual({
+      location: "Egypt",
+      countryCode: "eg",
+      googleDomain: "google.com.eg",
+    });
+  });
+
+  it("keeps a specific governorate/city but still adds the country code", () => {
+    expect(resolveEgyptSearchLocation("Cairo, Egypt")).toEqual({
+      location: "Cairo, Egypt",
+      countryCode: "eg",
+      googleDomain: "google.com.eg",
+    });
+    expect(resolveEgyptSearchLocation("Giza")).toEqual({
+      location: "Giza",
+      countryCode: "eg",
+      googleDomain: "google.com.eg",
+    });
+  });
+
+  it("passes through a non-Egypt location unchanged, with no country code", () => {
+    expect(resolveEgyptSearchLocation("Berlin, Germany")).toEqual({
+      location: "Berlin, Germany",
+    });
   });
 });

@@ -1,3 +1,5 @@
+import { mentionsEgyptLocation } from "@/lib/candidates/egyptLocations";
+
 // Non-geographic values a recruiter might reasonably type (or an AI
 // extraction might return) into a job's location field that describe the
 // *arrangement*, not a place — passing any of these straight to SerpApi's
@@ -36,4 +38,42 @@ export function shouldApplyLocationBias(location: string | null | undefined): bo
     .trim();
   if (!normalized) return false;
   return !NON_GEOGRAPHIC_LOCATION_VALUES.includes(normalized);
+}
+
+export interface SerpApiLocationParams {
+  location?: string;
+  countryCode?: string;
+  googleDomain?: string;
+}
+
+/**
+ * Resolves a job's location into SerpApi search params, with Egypt-specific
+ * nationwide handling: a bare country-level value ("Egypt") searches at
+ * country granularity (location="Egypt", gl="eg") instead of Google
+ * resolving an arbitrary/narrow city, while a named governorate/city (e.g.
+ * "Cairo, Egypt") keeps that specific location string but still gets
+ * gl="eg" — that param does most of the actual work of biasing results
+ * toward Egypt as a whole, whereas `location` alone is only a ranking hint.
+ * Always a single set of params for the whole job, never looped per
+ * governorate, so it doesn't multiply SerpApi usage or duplicate-candidate
+ * risk across per-city searches.
+ */
+export function resolveEgyptSearchLocation(
+  rawLocation: string | null | undefined,
+): SerpApiLocationParams {
+  if (!rawLocation || !shouldApplyLocationBias(rawLocation)) return {};
+
+  const normalized = rawLocation.trim();
+  const lower = normalized.toLowerCase();
+  const isCountryLevel = lower === "egypt" || lower === "eg";
+
+  if (!isCountryLevel && !mentionsEgyptLocation(normalized)) {
+    return { location: normalized };
+  }
+
+  return {
+    location: isCountryLevel ? "Egypt" : normalized,
+    countryCode: "eg",
+    googleDomain: "google.com.eg",
+  };
 }

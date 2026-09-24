@@ -24,6 +24,7 @@ interface ExistingCandidateRow extends CandidateRow {
   skills: string[] | null;
   experience_years: number | null;
   profile_image_url: string | null;
+  location_verified: boolean | null;
 }
 
 /**
@@ -58,6 +59,9 @@ function buildEnrichmentUpdate(
   if (existing.profile_image_url === null && incoming.profile_image_url !== null) {
     update.profile_image_url = incoming.profile_image_url;
   }
+  if (existing.location_verified === null && incoming.location_verified != null) {
+    update.location_verified = incoming.location_verified;
+  }
 
   const mergedSkills = Array.from(
     new Set([...(existing.skills ?? []), ...incoming.skills]),
@@ -84,11 +88,12 @@ function toRow(candidate: NormalizedCandidate, userId: string, rawData: unknown)
     skills: candidate.skills,
     experience_years: candidate.experience_years,
     raw_data: rawData ?? null,
+    location_verified: candidate.location_verified ?? null,
   };
 }
 
 const EXISTING_CANDIDATE_COLUMNS =
-  "id, headline, company, location, summary, skills, experience_years, profile_image_url";
+  "id, headline, company, location, summary, skills, experience_years, profile_image_url, location_verified";
 
 /**
  * Finds a previously persisted candidate matching this identity, across

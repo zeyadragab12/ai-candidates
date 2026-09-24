@@ -30,6 +30,7 @@ describe("normalizeCandidate", () => {
       summary: "5+ years building React and TypeScript applications.",
       skills: ["React", "TypeScript", "Next.js"],
       experience_years: null,
+      location_verified: null,
     });
   });
 
@@ -51,6 +52,7 @@ describe("normalizeCandidate", () => {
       summary: null,
       skills: [],
       experience_years: null,
+      location_verified: null,
     });
   });
 

@@ -70,6 +70,7 @@ interface Candidate {
   status: string;
   created_at: string;
   match: { match_score: number } | null;
+  location_verified: boolean | null;
 }
 
 function formatDateTime(value: string): string {
@@ -503,7 +504,14 @@ function CandidatesTable({ jobId }: { jobId: string }) {
                     </Link>
                   </td>
                   <td className="p-3 text-muted-foreground">
-                    {candidate.location ?? <EmptyCell />}
+                    <div className="flex items-center gap-1.5">
+                      {candidate.location ?? <EmptyCell />}
+                      {candidate.location_verified === true && (
+                        <Badge tone="good" title="Confirmed based in Egypt">
+                          Egypt verified
+                        </Badge>
+                      )}
+                    </div>
                   </td>
                   <td className="p-3">
                     <SkillsCell skills={candidate.skills} />

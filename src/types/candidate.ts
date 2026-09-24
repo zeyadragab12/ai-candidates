@@ -12,6 +12,9 @@ export const normalizedCandidateSchema = z.object({
   summary: z.string().nullable(),
   skills: z.array(z.string()),
   experience_years: z.number().nullable(),
+  /** See CandidateSearchResult.location_verified. Optional so existing
+   * callers/fixtures that never set it keep type-checking unchanged. */
+  location_verified: z.boolean().nullable().optional(),
 });
 
 export type NormalizedCandidate = z.infer<typeof normalizedCandidateSchema>;

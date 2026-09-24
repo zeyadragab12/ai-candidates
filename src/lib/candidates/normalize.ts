@@ -25,5 +25,6 @@ export function normalizeCandidate(
     summary: raw.snippet ?? null,
     skills: raw.skills ?? [],
     experience_years: raw.experience_years ?? null,
+    location_verified: raw.location_verified ?? null,
   };
 }

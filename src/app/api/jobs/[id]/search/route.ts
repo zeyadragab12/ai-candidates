@@ -7,10 +7,12 @@ import { requireUser } from "@/lib/api/requireUser";
 import { getSearchProvider } from "@/lib/search";
 import { getEnrichmentProvider } from "@/lib/enrichment";
 import { extractLinkedInSlug } from "@/lib/enrichment/ApifyLinkedInProvider";
+import { getAIProvider } from "@/lib/ai";
 import { normalizeCandidate } from "@/lib/candidates/normalize";
 import { dedupeCandidates, getCandidateIdentityKey } from "@/lib/candidates/dedupe";
 import { isImplausibleCompany, isImplausibleExperienceYears } from "@/lib/candidates/dataQuality";
-import { shouldApplyLocationBias } from "@/lib/candidates/locationBias";
+import { resolveEgyptSearchLocation, type SerpApiLocationParams } from "@/lib/candidates/locationBias";
+import { filterToEgyptCandidates } from "@/lib/candidates/verifyEgyptLocation";
 import { persistCandidates } from "@/lib/candidates/persist";
 import { withErrorHandling } from "@/lib/errors";
 import { getJobQueue } from "@/lib/jobs/queue";
@@ -43,7 +45,7 @@ async function processSearchRun(
   runId: string,
   queries: string[],
   provider: string,
-  location: string | null,
+  searchLocation: SerpApiLocationParams,
   logger: RequestLogger,
 ): Promise<void> {
   logger.info("Search run started", { jobId, runId, provider, queryCount: queries.length });
@@ -81,9 +83,7 @@ async function processSearchRun(
   // Queries are independent, so run them concurrently rather than paying
   // each one's latency (and retries) back to back.
   const settled = await Promise.allSettled(
-    queries.map((query) =>
-      searchProvider.searchCandidates({ query, location: location ?? undefined }),
-    ),
+    queries.map((query) => searchProvider.searchCandidates({ query, ...searchLocation })),
   );
   settled.forEach((outcome, index) => {
     if (outcome.status === "fulfilled") {
@@ -166,6 +166,31 @@ async function processSearchRun(
       })
       .eq("id", runId);
     return;
+  }
+
+  // Nationwide Egypt sourcing needs candidates actually confirmed to be
+  // based there — SerpApi/Apify location data isn't always reliable, and
+  // the query text alone (even quoted) doesn't guarantee it either. Only
+  // runs when this job's location resolved to Egypt; every other job's
+  // results are never touched by this. Fails soft (never aborts the run),
+  // matching the enrichment step's pattern above.
+  if (searchLocation.countryCode === "eg") {
+    try {
+      const beforeCount = allResults.length;
+      allResults = await filterToEgyptCandidates(allResults, getAIProvider());
+      logger.info("Egypt location verification complete", {
+        jobId,
+        runId,
+        before: beforeCount,
+        after: allResults.length,
+      });
+    } catch (error) {
+      logger.warn("Egypt location verification failed; continuing without it", {
+        jobId,
+        runId,
+        error,
+      });
+    }
   }
 
   // Defensive validation layer: reject a company/experience value that
@@ -292,12 +317,10 @@ export const POST = withErrorHandling(async (
     return NextResponse.json({ error: "Job not found." }, { status: 404 });
   }
   // Non-geographic values ("Remote", "Global", etc.) must never bias
-  // SerpApi's geo-targeted search — see shouldApplyLocationBias's doc
+  // SerpApi's geo-targeted search — see resolveEgyptSearchLocation's doc
   // comment. This is separate from job.location itself, which is left
   // untouched (still shown/editable everywhere else).
-  const jobLocation: string | null = shouldApplyLocationBias(job.data.location)
-    ? job.data.location
-    : null;
+  const searchLocation = resolveEgyptSearchLocation(job.data.location);
 
   let body: unknown;
   try {
@@ -352,7 +375,7 @@ export const POST = withErrorHandling(async (
         run.id,
         queries,
         provider,
-        jobLocation,
+        searchLocation,
         logger,
       );
     } catch (error) {

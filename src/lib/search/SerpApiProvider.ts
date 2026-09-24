@@ -133,6 +133,12 @@ export class SerpApiProvider implements SearchProvider {
     if (params.location) {
       url.searchParams.set("location", params.location);
     }
+    if (params.countryCode) {
+      url.searchParams.set("gl", params.countryCode);
+    }
+    if (params.googleDomain) {
+      url.searchParams.set("google_domain", params.googleDomain);
+    }
     if (params.limit) {
       url.searchParams.set("num", String(params.limit));
     }
