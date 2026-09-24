@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import type { JobAnalysis } from "@/types/job-analysis";
 import { cn } from "@/lib/utils";
-import { COUNTRY_OPTIONS, EMPLOYMENT_TYPES, LOCATION_OPTIONS } from "@/lib/jobs/constants";
+import { CITY_OPTIONS, EMPLOYMENT_TYPES, LOCATION_OPTIONS } from "@/lib/jobs/constants";
 
 // Radix Select can't use "" as an item value, so an unset location/employment
 // type is represented by this sentinel in the dropdown and translated back to
@@ -196,7 +196,7 @@ export function RequirementsEditor({ value, onChange }: RequirementsEditorProps)
 
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-slate-700" htmlFor="ra-location">
-              Location
+              Location <span className="text-red-600">*</span>
             </label>
             <Select
               value={value.location || LOCATION_OPTIONS[0]}
@@ -220,29 +220,30 @@ export function RequirementsEditor({ value, onChange }: RequirementsEditorProps)
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-slate-700" htmlFor="ra-country">
-              Country <span className="text-red-600">*</span>
+            <label className="text-xs font-semibold text-slate-700" htmlFor="ra-city">
+              City
             </label>
             <Select
-              value={value.country}
-              onValueChange={(selected) => updateField("country", selected)}
+              value={value.city || UNSPECIFIED_VALUE}
+              onValueChange={(selected) =>
+                updateField("city", selected === UNSPECIFIED_VALUE ? "" : selected)
+              }
             >
-              <SelectTrigger id="ra-country" className="bg-white text-sm h-9">
+              <SelectTrigger id="ra-city" className="bg-white text-sm h-9">
                 <SelectValue placeholder="Select a city" />
               </SelectTrigger>
               <SelectContent>
-                {COUNTRY_OPTIONS.map((country) => (
-                  <SelectItem key={country} value={country}>
-                    {country}
+                <SelectItem value={UNSPECIFIED_VALUE}>Not specified</SelectItem>
+                {CITY_OPTIONS.map((city) => (
+                  <SelectItem key={city} value={city}>
+                    {city}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {!value.country && (
-              <p role="alert" className="text-[11px] font-medium text-red-600">
-                Country is required.
-              </p>
-            )}
+            <p className="text-[11px] text-slate-500 leading-snug">
+              Optional. Narrows search results to this specific city instead of nationwide Egypt.
+            </p>
           </div>
 
           <div className="flex flex-col gap-1.5">

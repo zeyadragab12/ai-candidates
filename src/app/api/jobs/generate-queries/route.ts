@@ -63,17 +63,18 @@ export const POST = withErrorHandling(async (request: Request) => {
     previousQueries = (data ?? []).map((row) => row.query as string);
   }
 
-  // The quoted location phrase in the generated query should be the specific
-  // city the recruiter picked (jobAnalysis.country — Cairo/Alexandria/Giza/
-  // Suez), not the fixed nationwide "Egypt" value `location` always holds
-  // now. A city from COUNTRY_OPTIONS is already a single clean value safe to
-  // quote as-is. resolveCleanLocationText/"Egypt" remain as a defensive
-  // fallback only — see its doc comment for why an uncleaned, multi-value
-  // location string must never be quoted verbatim (confirmed live to make
-  // Google silently drop the query's real constraints and return noise).
+  // The quoted location phrase in the generated query should be the optional
+  // specific city the recruiter picked (jobAnalysis.city —
+  // Cairo/Alexandria/Giza/Suez), when set, instead of the fixed nationwide
+  // "Egypt" value `location` always holds now. A city from CITY_OPTIONS is
+  // already a single clean value safe to quote as-is. When no city is
+  // picked, resolveCleanLocationText/"Egypt" is the fallback — see its doc
+  // comment for why an uncleaned, multi-value location string must never be
+  // quoted verbatim (confirmed live to make Google silently drop the
+  // query's real constraints and return noise).
   const cleanedJobAnalysis = {
     ...jobAnalysis,
-    location: jobAnalysis.country || resolveCleanLocationText(jobAnalysis.location) || "Egypt",
+    location: jobAnalysis.city || resolveCleanLocationText(jobAnalysis.location) || "Egypt",
   };
 
   const provider = getAIProvider();

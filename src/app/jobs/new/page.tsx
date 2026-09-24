@@ -125,7 +125,7 @@ export default function NewJobPage() {
   if (!companyId) jobDetailsErrors.company = "Company is required.";
   if (!employmentType) jobDetailsErrors.employmentType = "Employment type is required.";
   if (!workArrangement) jobDetailsErrors.workArrangement = "Work arrangement is required.";
-  if (analysis && !analysis.country) jobDetailsErrors.country = "Country is required.";
+  if (analysis && !analysis.location) jobDetailsErrors.location = "Location is required.";
   const isJobDetailsValid = Object.keys(jobDetailsErrors).length === 0;
 
   function markAllFieldsTouched() {
@@ -342,7 +342,7 @@ export default function NewJobPage() {
           description,
           company_id: companyId,
           location: analysis.location,
-          country: analysis.country,
+          city: analysis.city,
           employment_type: employmentType || analysis.employment_type,
           work_arrangement: workArrangement,
           seniority: analysis.seniority,
@@ -883,7 +883,7 @@ export default function NewJobPage() {
                 {!isJobDetailsValid && (
                   <p className="mt-3 text-xs text-amber-300">
                     Complete all required job details (title, company, employment type, work
-                    arrangement, country) above to continue.
+                    arrangement, location) above to continue.
                   </p>
                 )}
 
