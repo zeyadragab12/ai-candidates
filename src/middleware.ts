@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { isEmailAllowed } from "@/lib/auth/allowlist";
 
-const PROTECTED_PREFIXES = ["/dashboard", "/jobs", "/candidates", "/settings"];
+const PROTECTED_PREFIXES = ["/dashboard", "/jobs", "/candidates", "/settings", "/admin"];
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });

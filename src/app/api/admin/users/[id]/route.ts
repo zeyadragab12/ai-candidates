@@ -42,6 +42,17 @@ export const PATCH = withErrorHandling(async (request: Request, { params }: Rout
     return NextResponse.json({ error: "No changes provided." }, { status: 400 });
   }
 
+  // An admin removing their own admin role or deactivating themselves could
+  // leave nobody able to manage users; another admin must do it.
+  const removesOwnAdmin =
+    (updates.role !== undefined && updates.role !== "admin") || updates.is_active === false;
+  if (id === user.id && removesOwnAdmin) {
+    return NextResponse.json(
+      { error: "You can't remove your own admin access. Ask another admin." },
+      { status: 400 },
+    );
+  }
+
   const { data, error } = await supabase
     .from("profiles")
     .update(updates)
@@ -54,6 +65,18 @@ export const PATCH = withErrorHandling(async (request: Request, { params }: Rout
   }
   if (!data) {
     return NextResponse.json({ error: "User not found." }, { status: 404 });
+  }
+
+  // Keep teams.manager_id consistent with the RLS model (manager sees the
+  // team in their own profiles.team_id): a demoted, deactivated, or moved
+  // manager stops being listed as manager of any team they no longer lead.
+  let staleManagedTeams = supabase.from("teams").update({ manager_id: null }).eq("manager_id", id);
+  if (data.role === "hr_manager" && data.is_active && data.team_id) {
+    staleManagedTeams = staleManagedTeams.neq("id", data.team_id);
+  }
+  const { error: managerSyncError } = await staleManagedTeams;
+  if (managerSyncError) {
+    return NextResponse.json({ error: "Failed to update team manager." }, { status: 500 });
   }
 
   await logActivity(supabase, {

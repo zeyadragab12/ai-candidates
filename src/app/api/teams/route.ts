@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { logActivity } from "@/lib/activity/log";
 import { requireRole } from "@/lib/auth/roles";
 import { withErrorHandling } from "@/lib/errors";
+import { assignTeamManager, InvalidManagerError } from "@/lib/teams/assignManager";
 import { teamCreateSchema } from "@/types/team";
 
 // Admin-only: system-wide list of every team. A manager or HR user reads
@@ -47,12 +48,26 @@ export const POST = withErrorHandling(async (request: Request) => {
 
   const { data, error } = await supabase
     .from("teams")
-    .insert({ name: parsed.data.name, manager_id: parsed.data.managerId ?? null })
+    .insert({ name: parsed.data.name })
     .select()
     .single();
 
   if (error) {
     return NextResponse.json({ error: "Failed to create team." }, { status: 500 });
+  }
+
+  if (parsed.data.managerId) {
+    try {
+      await assignTeamManager(supabase, data.id, parsed.data.managerId);
+    } catch (managerError) {
+      if (managerError instanceof InvalidManagerError) {
+        return NextResponse.json(
+          { error: `Team created, but ${managerError.message.toLowerCase()}` },
+          { status: 400 },
+        );
+      }
+      throw managerError;
+    }
   }
 
   await logActivity(supabase, {

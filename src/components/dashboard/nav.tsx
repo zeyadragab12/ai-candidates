@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
 import { LogoutButton } from "@/components/auth/logout-button";
+import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
@@ -13,8 +15,36 @@ const LINKS = [
   { href: "/settings", label: "Settings" },
 ];
 
+const ADMIN_LINK = { href: "/admin", label: "Admin" };
+
+// Only decides whether to show the Admin link; /admin itself and every admin
+// API re-check the role server-side. Cached per page load so client-side
+// navigation doesn't re-query on every page.
+let isAdminPromise: Promise<boolean> | null = null;
+
+function fetchIsAdmin(): Promise<boolean> {
+  isAdminPromise ??= Promise.resolve(createClient().rpc("is_admin")).then(
+    ({ data, error }) => !error && data === true,
+    () => false,
+  );
+  return isAdminPromise;
+}
+
 export function DashboardNav() {
   const pathname = usePathname();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchIsAdmin().then((result) => {
+      if (!cancelled) setIsAdmin(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const links = isAdmin ? [...LINKS, ADMIN_LINK] : LINKS;
 
   return (
     <header className="sticky top-0 z-10 border-b border-border/80 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -26,7 +56,7 @@ export function DashboardNav() {
             </span>
           </Link>
           <nav className="flex flex-wrap items-center gap-1">
-            {LINKS.map((link) => {
+            {links.map((link) => {
               const isActive =
                 link.href === "/dashboard"
                   ? pathname === link.href

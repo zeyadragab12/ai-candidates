@@ -1,4 +1,9 @@
-const ALLOWED_EMAILS = ["zeyad.ragab@thegdevelopments.com", "amr.fayez@thegdevelopments.com"];
+const ALLOWED_EMAILS = [
+  "zeyad.ragab@thegdevelopments.com",
+  "amr.fayez@thegdevelopments.com",
+  "zeyadragab12@gmail.com",
+  "zeyadboyka6@gmail.com",
+];
 
 export function isEmailAllowed(email: string | null | undefined): boolean {
   if (!email) return false;

@@ -2,10 +2,8 @@ import { NextResponse } from "next/server";
 import type { User } from "@supabase/supabase-js";
 
 import { requireUser } from "@/lib/api/requireUser";
+import type { Role } from "@/lib/auth/roleDefinitions";
 import { createClient } from "@/lib/supabase/server";
-
-export const ROLES = ["admin", "hr_manager", "hr_user"] as const;
-export type Role = (typeof ROLES)[number];
 
 export interface Profile {
   id: string;
