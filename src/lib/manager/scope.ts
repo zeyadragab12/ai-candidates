@@ -1,7 +1,7 @@
 import type { User } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 
-import { getProfile, type Profile } from "@/lib/auth/roles";
+import { getProfile, type Profile } from "@/lib/auth/access";
 import { createClient } from "@/lib/supabase/server";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;

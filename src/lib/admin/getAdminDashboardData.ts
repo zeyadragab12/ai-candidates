@@ -6,7 +6,8 @@ import {
   type ActivityFeedItem,
   type ActivityLogRow,
 } from "@/lib/activity/feed";
-import { isRejectedSignup } from "@/lib/auth/allowlist";
+import { isAccessRequest } from "@/lib/auth/access";
+import type { Role } from "@/lib/auth/roleDefinitions";
 import {
   combinedAverageMatch,
   loadUserStats,
@@ -17,6 +18,7 @@ import {
   type UserPerformanceRow,
   type UserStatsRow,
 } from "@/lib/performance/userStats";
+import { getDisplayName } from "@/lib/users/displayName";
 
 interface TeamRow {
   id: string;
@@ -58,14 +60,24 @@ export interface AdminDashboardData {
   teamOptions: { id: string; name: string }[];
   managerOptions: { id: string; name: string }[];
   recentActivity: ActivityFeedItem[];
+  /** People who signed in without an invite; approving activates them. */
+  accessRequests: { id: string; email: string; name: string; requestedAt: string }[];
+  pendingInvites: { email: string; role: Role; teamName: string | null; invitedAt: string }[];
   loadError: string | null;
+}
+
+interface PendingInviteRow {
+  email: string;
+  role: Role;
+  team_id: string | null;
+  created_at: string;
 }
 
 export async function getAdminDashboardData(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<any, any, any>,
 ): Promise<AdminDashboardData> {
-  const [userStats, profilesRes, teamsRes, activityRes] = await Promise.all([
+  const [userStats, profilesRes, teamsRes, activityRes, invitesRes] = await Promise.all([
     loadUserStats(supabase),
     supabase.from("profiles").select("id, email, role, team_id, is_active, created_at"),
     supabase.from("teams").select("id, name, manager_id").order("name"),
@@ -74,17 +86,23 @@ export async function getAdminDashboardData(
       .select(ACTIVITY_FEED_COLUMNS)
       .order("created_at", { ascending: false })
       .limit(20),
+    supabase
+      .from("pending_role_assignments")
+      .select("email, role, team_id, created_at")
+      .order("created_at", { ascending: false }),
   ]);
 
   const loadError =
-    userStats.error || profilesRes.error || teamsRes.error || activityRes.error
+    userStats.error || profilesRes.error || teamsRes.error || activityRes.error || invitesRes.error
       ? "Some admin data failed to load. Figures below may be incomplete."
       : null;
 
   const { stats, signIns } = userStats;
-  const profiles = ((profilesRes.data ?? []) as ProfileRow[]).filter(
-    (profile) => !isRejectedSignup(profile),
-  );
+  const allProfiles = (profilesRes.data ?? []) as ProfileRow[];
+  const profiles = allProfiles.filter((profile) => !isAccessRequest(profile));
+  const requests = allProfiles
+    .filter((profile) => isAccessRequest(profile))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
   const teams = (teamsRes.data ?? []) as TeamRow[];
   const teamNames = new Map(teams.map((team) => [team.id, team.name]));
   const emailsById = new Map(profiles.map((profile) => [profile.id, profile.email]));
@@ -147,6 +165,18 @@ export async function getAdminDashboardData(
       .filter((user) => user.role === "hr_manager" && user.isActive)
       .map((user) => ({ id: user.id, name: user.name })),
     recentActivity: toActivityFeedItems((activityRes.data ?? []) as ActivityLogRow[], emailsById),
+    accessRequests: requests.map((profile) => ({
+      id: profile.id,
+      email: profile.email,
+      name: getDisplayName(profile.email) ?? profile.email,
+      requestedAt: profile.created_at,
+    })),
+    pendingInvites: ((invitesRes.data ?? []) as PendingInviteRow[]).map((invite) => ({
+      email: invite.email,
+      role: invite.role,
+      teamName: invite.team_id ? (teamNames.get(invite.team_id) ?? null) : null,
+      invitedAt: invite.created_at,
+    })),
     loadError,
   };
 }

@@ -6,22 +6,24 @@ import {
   ShieldCheck,
   Target,
   UserCheck,
+  UserPlus,
   Users,
 } from "lucide-react";
 import { redirect } from "next/navigation";
 
-import { ActivityFeed } from "@/components/dashboard/activity-feed";
+import { AccessManagement } from "@/components/admin/access-management";
 import { CreateTeamForm } from "@/components/admin/create-team-form";
 import { TeamsOverview } from "@/components/admin/teams-overview";
 import { UserManagement } from "@/components/admin/user-management";
 import { UserPerformanceTable } from "@/components/admin/user-performance-table";
+import { ActivityFeed } from "@/components/dashboard/activity-feed";
 import { DashboardNav } from "@/components/dashboard/nav";
 import { PipelineChart } from "@/components/dashboard/pipeline-chart";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getAdminDashboardData } from "@/lib/admin/getAdminDashboardData";
-import { getProfile } from "@/lib/auth/roles";
+import { getProfile } from "@/lib/auth/access";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function AdminDashboardPage() {
@@ -49,6 +51,8 @@ export default async function AdminDashboardPage() {
     teamOptions,
     managerOptions,
     recentActivity,
+    accessRequests,
+    pendingInvites,
     loadError,
   } = await getAdminDashboardData(supabase);
 
@@ -208,6 +212,32 @@ export default async function AdminDashboardPage() {
           </CardHeader>
           <CardContent className="pt-4">
             <UserPerformanceTable users={users} linkToMember />
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100 pb-3">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-900">
+                <UserPlus className="h-4 w-4 text-indigo-600" />
+                Access &amp; Invitations
+              </CardTitle>
+              <CardDescription className="text-xs text-slate-500">
+                Only people you invite or approve can sign in
+              </CardDescription>
+            </div>
+            {accessRequests.length > 0 && (
+              <Badge tone="warning">
+                {accessRequests.length} {accessRequests.length === 1 ? "request" : "requests"}
+              </Badge>
+            )}
+          </CardHeader>
+          <CardContent className="pt-4">
+            <AccessManagement
+              teams={teamOptions}
+              accessRequests={accessRequests}
+              pendingInvites={pendingInvites}
+            />
           </CardContent>
         </Card>
 

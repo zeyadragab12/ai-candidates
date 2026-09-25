@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { isEmailAllowed } from "@/lib/auth/allowlist";
+import { hasAppAccess } from "@/lib/auth/access";
 
 const PROTECTED_PREFIXES = ["/dashboard", "/jobs", "/candidates", "/settings", "/admin", "/manager", "/reports"];
 
@@ -43,7 +43,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (isProtected && user && !isEmailAllowed(user.email)) {
+  // Access is an active profile: new sign-ups are inactive unless an admin
+  // invited them, and deactivating someone in Admin takes effect here on
+  // their next page load.
+  if (isProtected && user && !(await hasAppAccess(supabase, user.id))) {
     await supabase.auth.signOut();
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("error", "not_allowed");

@@ -2,8 +2,8 @@
 -- (migration 0001's `team_select_*` using (true) policies) to role-scoped
 -- reads. After this, a row is readable only by:
 --   * its owner                  (the original "Users can view own ..." policies)
---   * the owner's HR Manager     (manager_select_team_* from 0005)
---   * an admin                   (admin_select_* from 0003)
+--   * the owner's HR Manager     (manager_select_team_* from 0009)
+--   * an admin                   (admin_select_* from 0007)
 -- Writes were already owner-only and are unchanged. No data is modified
 -- except moving admins out of teams (see below).
 --

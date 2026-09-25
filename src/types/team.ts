@@ -18,6 +18,12 @@ export const profileUpdateSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
+export const inviteSchema = z.object({
+  email: z.string().trim().toLowerCase().email("Enter a valid email address.").max(320),
+  role: z.enum(ROLES),
+  teamId: z.string().uuid().nullable().optional(),
+});
+
 export type TeamCreateInput = z.infer<typeof teamCreateSchema>;
 export type TeamUpdateInput = z.infer<typeof teamUpdateSchema>;
 export type ProfileUpdateInput = z.infer<typeof profileUpdateSchema>;

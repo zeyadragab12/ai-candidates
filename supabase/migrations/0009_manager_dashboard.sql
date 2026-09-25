@@ -6,7 +6,7 @@
 --    set-returning so `x in (select public.managed_user_ids())` is evaluated
 --    once per query rather than once per row.
 -- 2. manager_select_team_* policies: a manager can read their team members'
---    sourcing data. Like the admin_select_* policies from 0003 this is
+--    sourcing data. Like the admin_select_* policies from 0007 this is
 --    additive and redundant with 0001's `team_select_*` (using true) today —
 --    it's what keeps manager visibility working once those blanket policies
 --    are replaced by owner/team-scoped ones.

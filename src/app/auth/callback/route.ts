@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { logActivity } from "@/lib/activity/log";
-import { isEmailAllowed } from "@/lib/auth/allowlist";
+import { hasAppAccess } from "@/lib/auth/access";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/login?error=oauth_failed`);
   }
 
-  if (!isEmailAllowed(data.user.email)) {
+  if (!(await hasAppAccess(supabase, data.user.id))) {
     await supabase.auth.signOut();
     return NextResponse.redirect(`${origin}/login?error=not_allowed`);
   }

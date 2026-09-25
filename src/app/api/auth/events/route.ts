@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { logActivity } from "@/lib/activity/log";
-import { isEmailAllowed } from "@/lib/auth/allowlist";
+import { hasAppAccess } from "@/lib/auth/access";
 import { withErrorHandling } from "@/lib/errors";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
@@ -42,16 +42,16 @@ export const POST = withErrorHandling(async (request: Request) => {
 
   if (parsed.data.event === "login_failed") {
     await enforceRateLimit(`auth-failed:${clientIp(request)}`, 10, 60);
-    if (isEmailAllowed(parsed.data.email)) {
-      await supabase.rpc("record_failed_login", { p_email: parsed.data.email });
-    }
+    await supabase.rpc("record_failed_login", { p_email: parsed.data.email });
     return NextResponse.json({ ok: true });
   }
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) {
+  // A sign-in the app is about to reject (no active profile) isn't logged
+  // as a successful one.
+  if (!user || !(await hasAppAccess(supabase, user.id))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

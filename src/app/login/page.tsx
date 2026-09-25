@@ -13,7 +13,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { isEmailAllowed } from "@/lib/auth/allowlist";
 import {
   reportAuthEvent,
   signInWithGoogle,
@@ -23,7 +22,8 @@ import {
 
 type Mode = "login" | "signup";
 
-const NOT_ALLOWED_MESSAGE = "This app is restricted to authorized users.";
+const NOT_ALLOWED_MESSAGE =
+  "Your account doesn't have access yet. Ask an admin to invite you or approve your access request.";
 
 export default function LoginPage() {
   return (
@@ -61,12 +61,6 @@ function LoginForm() {
     const email = String(formData.get("email") ?? "");
     const password = String(formData.get("password") ?? "");
 
-    if (!isEmailAllowed(email)) {
-      setIsSubmitting(false);
-      setError(NOT_ALLOWED_MESSAGE);
-      return;
-    }
-
     const { error: authError } =
       mode === "login"
         ? await signInWithPassword(email, password)
@@ -81,7 +75,9 @@ function LoginForm() {
     }
 
     if (mode === "signup") {
-      setMessage("Account created. Check your email to confirm, then log in.");
+      setMessage(
+        "Account created. Check your email to confirm, then log in. If you weren't invited, an admin will need to approve your access first.",
+      );
       return;
     }
 

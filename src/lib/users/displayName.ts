@@ -1,7 +1,7 @@
 /**
  * Derives a human-friendly display name from an email address, since this
  * app has no profiles/names table — email is the only identity on record
- * (see src/lib/auth/allowlist.ts). "zeyad.ragab@..." -> "Zeyad Ragab".
+ * (see src/lib/auth/access.ts). "zeyad.ragab@..." -> "Zeyad Ragab".
  */
 export function getDisplayName(email: string | null | undefined): string | null {
   if (!email) return null;

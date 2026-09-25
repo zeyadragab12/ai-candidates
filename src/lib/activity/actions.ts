@@ -17,6 +17,9 @@ export const ACTION_LABELS: Record<string, string> = {
   "team.created": "Team created",
   "team.updated": "Team updated",
   "team.user_updated": "User role/team changed",
+  "team.user_invited": "User invited",
+  "team.access_granted": "Access granted",
+  "team.invite_withdrawn": "Invite withdrawn",
   "report.viewed": "Report viewed",
   "report.exported": "Report exported",
 };

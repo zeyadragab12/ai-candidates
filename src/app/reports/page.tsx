@@ -5,7 +5,7 @@ import { DashboardNav } from "@/components/dashboard/nav";
 import { ReportControls } from "@/components/reports/report-controls";
 import { ReportView } from "@/components/reports/report-view";
 import { logActivityOnce } from "@/lib/activity/log";
-import { getProfile } from "@/lib/auth/roles";
+import { getProfile } from "@/lib/auth/access";
 import { parseDateRange, singleParam, type SearchParams } from "@/lib/dates/dateRange";
 import { parseUuid } from "@/lib/manager/filters";
 import { generateReport, ReportLoadError } from "@/lib/reports/generateReport";
