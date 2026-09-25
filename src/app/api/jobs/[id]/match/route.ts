@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { logActivity } from "@/lib/activity/log";
 import { getAIProvider } from "@/lib/ai";
 import { requireUser } from "@/lib/api/requireUser";
 import { forbidUnlessOwner } from "@/lib/auth/ownership";
@@ -10,6 +11,9 @@ import {
 } from "@/lib/candidates/mapToMatchingInput";
 import { withErrorHandling } from "@/lib/errors";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+
+/** A candidate scoring at least this counts as a "high-quality" find. */
+const STRONG_MATCH_THRESHOLD = 80;
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -64,6 +68,31 @@ export const POST = withErrorHandling(async (_request: Request, { params }: Rout
   }));
 
   const summary = await runBatchMatch(supabase, provider, jobId, jobInput, batchInput);
+
+  const scoredIds = summary.results.filter((r) => r.success).map((r) => r.candidateId);
+  if (scoredIds.length > 0) {
+    const { count: strongMatches } = await supabase
+      .from("candidate_matches")
+      .select("id", { count: "exact", head: true })
+      .eq("job_id", jobId)
+      .in("candidate_id", scoredIds)
+      .gte("match_score", STRONG_MATCH_THRESHOLD);
+
+    // A non-zero strongMatches also notifies the owner's manager (DB trigger).
+    await logActivity(supabase, {
+      userId: auth.user.id,
+      action: "job.candidates_scored",
+      entityType: "job",
+      entityId: jobId,
+      description: `Scored ${scoredIds.length} candidates for "${job.data.title}" — ${strongMatches ?? 0} strong ${strongMatches === 1 ? "match" : "matches"} (${STRONG_MATCH_THRESHOLD}%+)`,
+      metadata: {
+        jobId,
+        scored: scoredIds.length,
+        strongMatches: strongMatches ?? 0,
+        threshold: STRONG_MATCH_THRESHOLD,
+      },
+    });
+  }
 
   return NextResponse.json(summary);
 });

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { LogoutButton } from "@/components/auth/logout-button";
+import { NotificationBell } from "@/components/dashboard/notification-bell";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -85,7 +86,10 @@ export function DashboardNav() {
             })}
           </nav>
         </div>
-        <LogoutButton />
+        <div className="flex items-center gap-2">
+          {role === "hr_manager" && <NotificationBell />}
+          <LogoutButton />
+        </div>
       </div>
     </header>
   );

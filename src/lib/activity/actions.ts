@@ -6,6 +6,7 @@ export const ACTION_LABELS: Record<string, string> = {
   "job.created": "Job created",
   "job.updated": "Job updated",
   "job.deleted": "Job deleted",
+  "job.candidates_scored": "Candidates scored",
   "sourcing_run.started": "Sourcing run started",
   "sourcing_run.completed": "Sourcing run completed",
   "sourcing_run.failed": "Sourcing run failed",

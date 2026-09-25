@@ -37,6 +37,7 @@ async function logRunOutcome(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<any, any, any>,
   userId: string,
+  jobId: string,
   runId: string,
   jobTitle: string,
   outcome: "completed" | "failed",
@@ -47,6 +48,7 @@ async function logRunOutcome(
     action: outcome === "completed" ? "sourcing_run.completed" : "sourcing_run.failed",
     entityType: "search_run",
     entityId: runId,
+    metadata: { jobId },
     description:
       outcome === "completed"
         ? `Completed a sourcing run for "${jobTitle}"${detail ? ` (${detail})` : ""}`
@@ -97,7 +99,7 @@ async function processSearchRun(
         completed_at: new Date().toISOString(),
       })
       .eq("id", runId);
-    await logRunOutcome(supabase, userId, runId, jobTitle, "failed");
+    await logRunOutcome(supabase, userId, jobId, runId, jobTitle, "failed");
     return;
   }
 
@@ -190,7 +192,7 @@ async function processSearchRun(
         completed_at: new Date().toISOString(),
       })
       .eq("id", runId);
-    await logRunOutcome(supabase, userId, runId, jobTitle, "failed");
+    await logRunOutcome(supabase, userId, jobId, runId, jobTitle, "failed");
     return;
   }
 
@@ -308,6 +310,7 @@ async function processSearchRun(
   await logRunOutcome(
     supabase,
     userId,
+    jobId,
     runId,
     jobTitle,
     "completed",
@@ -445,7 +448,7 @@ export const POST = withErrorHandling(async (
           completed_at: new Date().toISOString(),
         })
         .eq("id", run.id);
-      await logRunOutcome(supabase, auth.user.id, run.id, jobTitle, "failed");
+      await logRunOutcome(supabase, auth.user.id, jobId, run.id, jobTitle, "failed");
     }
   }, getOrCreateRequestId(request));
 
