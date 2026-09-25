@@ -31,6 +31,7 @@ function stats(userId: string, overrides: Partial<UserStatsRow> = {}): UserStats
     shortlisted_count: 0,
     contacted_count: 0,
     rejected_count: 0,
+    hired_count: 0,
     run_avg_sum: 0,
     run_avg_count: 0,
     last_activity_at: null,
@@ -43,7 +44,7 @@ const omar = profile("u2", "omar.hassan@example.com", { is_active: false });
 
 const statsMap = new Map([
   ["u1", stats("u1", { jobs_count: 3, runs_count: 4, completed_runs: 3, candidates_count: 20, new_count: 10, shortlisted_count: 6, contacted_count: 2, rejected_count: 2, run_avg_sum: 150, run_avg_count: 2 })],
-  ["u2", stats("u2", { jobs_count: 1, runs_count: 1, completed_runs: 1, candidates_count: 10, new_count: 10, run_avg_sum: "60", run_avg_count: 1 })],
+  ["u2", stats("u2", { jobs_count: 1, runs_count: 1, completed_runs: 1, candidates_count: 11, new_count: 10, hired_count: 1, run_avg_sum: "60", run_avg_count: 1 })],
   // Present in the stats map (e.g. an admin caller) but not in scope — must never be counted.
   ["u3", stats("u3", { jobs_count: 99, candidates_count: 999, run_avg_sum: 1, run_avg_count: 1 })],
 ]);
@@ -57,7 +58,7 @@ describe("buildPerformanceReport", () => {
   });
 
   it("totals only in-scope members, never someone outside the scope", () => {
-    expect(section.totals).toMatchObject({ jobs: 4, runs: 5, candidates: 30, shortlisted: 6 });
+    expect(section.totals).toMatchObject({ jobs: 4, runs: 5, candidates: 31, shortlisted: 6 });
   });
 
   it("combines match quality as an average of per-file averages", () => {
@@ -73,12 +74,13 @@ describe("buildPerformanceReport", () => {
 });
 
 describe("buildPipelineReport", () => {
-  it("counts each status and the share that progressed", () => {
+  it("counts each status (including Hired) and the share that progressed", () => {
     const report = buildPipelineReport([sara, omar], statsMap, meta);
     const section = report.sections[0]!;
-    expect(section.totals).toMatchObject({ total: 30, new: 20, shortlisted: 6, contacted: 2, rejected: 2 });
-    // (6 shortlisted + 2 contacted) / 30
-    expect(section.totals?.progressed).toBe(27);
+    expect(section.totals).toMatchObject({ total: 31, new: 20, shortlisted: 6, contacted: 2, rejected: 2, hired: 1 });
+    // (6 shortlisted + 2 contacted + 1 hired) / 31
+    expect(section.totals?.progressed).toBe(29);
+    expect(section.rows.find((row) => row.member === "Omar Hassan (inactive)")?.hired).toBe(1);
     expect(section.rows.find((row) => row.member === "Sara Ali")?.progressed).toBe(40);
   });
 });

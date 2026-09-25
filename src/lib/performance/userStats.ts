@@ -17,6 +17,7 @@ export interface UserStatsRow {
   shortlisted_count: number;
   contacted_count: number;
   rejected_count: number;
+  hired_count: number;
   run_avg_sum: number | string;
   run_avg_count: number;
   last_activity_at: string | null;
@@ -50,6 +51,7 @@ export interface UserPerformanceRow {
   shortlisted: number;
   contacted: number;
   rejected: number;
+  hired: number;
   averageMatchQuality: number | null;
   lastActivityAt: string | null;
   lastSignInAt: string | null;
@@ -82,6 +84,7 @@ export function pipelineCountsOf(rows: UserStatsRow[]): Record<string, number> {
     Shortlisted: sumStats(rows, (row) => row.shortlisted_count),
     Contacted: sumStats(rows, (row) => row.contacted_count),
     Rejected: sumStats(rows, (row) => row.rejected_count),
+    Hired: sumStats(rows, (row) => row.hired_count),
   };
 }
 
@@ -143,6 +146,7 @@ export function toUserPerformanceRow(
     shortlisted: Number(stats?.shortlisted_count ?? 0),
     contacted: Number(stats?.contacted_count ?? 0),
     rejected: Number(stats?.rejected_count ?? 0),
+    hired: Number(stats?.hired_count ?? 0),
     averageMatchQuality: averageOf(
       Number(stats?.run_avg_sum ?? 0),
       Number(stats?.run_avg_count ?? 0),

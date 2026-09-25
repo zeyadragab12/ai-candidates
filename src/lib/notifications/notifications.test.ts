@@ -24,6 +24,12 @@ describe("notificationHref", () => {
     expect(notificationHref({ ...base, entity_type: "candidate", entity_id: "cand-1" })).toBe("/candidates/cand-1");
   });
 
+  it("sends admins to the Admin page for access requests", () => {
+    expect(
+      notificationHref({ ...base, action: "auth.access_requested", entity_type: "profile", entity_id: "p-1" }),
+    ).toBe("/admin");
+  });
+
   it("falls back to the team member's page when the target is unknown", () => {
     expect(notificationHref({ ...base, entity_type: "search_run", entity_id: "run-1" })).toBe("/manager/team/actor-1");
     expect(notificationHref({ ...base, user_id: null, entity_type: "other", entity_id: null })).toBe("/manager");

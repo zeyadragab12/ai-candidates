@@ -232,7 +232,8 @@ export function buildPipelineReport(
   const scoped = statsFor(members, stats);
   const total = (pick: (r: UserStatsRow) => number | string) => sumStats(scoped, pick);
   const all = total((r) => r.candidates_count);
-  const progressed = total((r) => r.shortlisted_count) + total((r) => r.contacted_count);
+  const progressed =
+    total((r) => r.shortlisted_count) + total((r) => r.contacted_count) + total((r) => r.hired_count);
 
   const rows = sortedMembers(members).map((member) => {
     const row = stats.get(member.id);
@@ -246,7 +247,11 @@ export function buildPipelineReport(
       shortlisted: count((r) => r.shortlisted_count),
       contacted: count((r) => r.contacted_count),
       rejected: count((r) => r.rejected_count),
-      progressed: ratio(count((r) => r.shortlisted_count) + count((r) => r.contacted_count), candidates),
+      hired: count((r) => r.hired_count),
+      progressed: ratio(
+        count((r) => r.shortlisted_count) + count((r) => r.contacted_count) + count((r) => r.hired_count),
+        candidates,
+      ),
     };
   });
 
@@ -259,13 +264,14 @@ export function buildPipelineReport(
       { label: "Shortlisted", value: String(total((r) => r.shortlisted_count)) },
       { label: "Contacted", value: String(total((r) => r.contacted_count)) },
       { label: "Rejected", value: String(total((r) => r.rejected_count)) },
+      { label: "Hired", value: String(total((r) => r.hired_count)) },
     ],
     sections: [
       {
         id: "members",
         title: "Pipeline by member",
         description:
-          "Candidates sourced in the selected period, by their current status. \"Progressed\" is the share now shortlisted or contacted.",
+          "Candidates sourced in the selected period, by their current status. \"Progressed\" is the share now shortlisted, contacted, or hired.",
         columns: [
           { key: "member", label: "Member" },
           { key: "total", label: "Total", kind: "number" },
@@ -274,6 +280,7 @@ export function buildPipelineReport(
           { key: "shortlisted", label: "Shortlisted", kind: "number" },
           { key: "contacted", label: "Contacted", kind: "number" },
           { key: "rejected", label: "Rejected", kind: "number" },
+          { key: "hired", label: "Hired", kind: "number" },
           { key: "progressed", label: "Progressed", kind: "percent" },
         ],
         rows,
@@ -285,6 +292,7 @@ export function buildPipelineReport(
           shortlisted: total((r) => r.shortlisted_count),
           contacted: total((r) => r.contacted_count),
           rejected: total((r) => r.rejected_count),
+          hired: total((r) => r.hired_count),
           progressed: ratio(progressed, all),
         },
         emptyMessage: "No members in this scope.",

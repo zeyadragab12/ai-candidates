@@ -141,8 +141,8 @@ export function NotificationBell() {
             </p>
           ) : items.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-slate-500">
-              You&apos;re all caught up. Your team&apos;s sourcing runs, shortlists, and strong
-              matches will show up here.
+              You&apos;re all caught up. Team sourcing runs, shortlists, hires, strong matches, and
+              access requests will show up here.
             </p>
           ) : (
             <ul className="max-h-96 divide-y divide-slate-100 overflow-y-auto">

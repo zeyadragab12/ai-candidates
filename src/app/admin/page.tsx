@@ -241,8 +241,8 @@ export default async function AdminDashboardPage() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <Card className="col-span-1 border-slate-200 shadow-sm lg:col-span-2">
+        <div className="grid grid-cols-1 gap-6">
+          <Card className="col-span-1 border-slate-200 shadow-sm">
             <CardHeader className="border-b border-slate-100 pb-3">
               <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-900">
                 <ShieldCheck className="h-4 w-4 text-indigo-600" />

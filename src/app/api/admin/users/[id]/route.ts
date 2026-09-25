@@ -79,6 +79,21 @@ export const PATCH = withErrorHandling(async (request: Request, { params }: Rout
     return NextResponse.json({ error: "Failed to update team manager." }, { status: 500 });
   }
 
+  // An active HR Manager placed in a team that has no manager yet becomes
+  // its manager, so the team doesn't show "Unassigned" while they're
+  // effectively leading it. An existing manager is never replaced here —
+  // that's an explicit choice on the Teams card.
+  if (data.role === "hr_manager" && data.is_active && data.team_id) {
+    const { error: assignError } = await supabase
+      .from("teams")
+      .update({ manager_id: data.id })
+      .eq("id", data.team_id)
+      .is("manager_id", null);
+    if (assignError) {
+      return NextResponse.json({ error: "Failed to update team manager." }, { status: 500 });
+    }
+  }
+
   await logActivity(supabase, {
     userId: user.id,
     action: "team.user_updated",

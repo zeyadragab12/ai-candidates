@@ -116,7 +116,7 @@ export function DashboardNav() {
           </nav>
         </div>
         <div className="flex items-center gap-2">
-          {role === "hr_manager" && <NotificationBell />}
+          {(role === "hr_manager" || role === "admin") && <NotificationBell />}
           <LogoutButton />
         </div>
       </div>

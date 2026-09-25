@@ -3,6 +3,7 @@ export const ACTION_LABELS: Record<string, string> = {
   "auth.login": "Signed in",
   "auth.logout": "Signed out",
   "auth.login_failed": "Failed sign-in",
+  "auth.access_requested": "Requested access",
   "job.created": "Job created",
   "job.updated": "Job updated",
   "job.deleted": "Job deleted",

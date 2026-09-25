@@ -44,6 +44,9 @@ export function notificationHref(activity: NotificationActivity): string {
   if (activity.entity_type === "candidate" && activity.entity_id) {
     return `/candidates/${activity.entity_id}`;
   }
+  if (activity.action === "auth.access_requested") {
+    return "/admin";
+  }
   return activity.user_id ? `/manager/team/${activity.user_id}` : "/manager";
 }
 
