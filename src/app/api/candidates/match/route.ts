@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { getAIProvider } from "@/lib/ai";
 import { requireUser } from "@/lib/api/requireUser";
+import { forbidUnlessOwner } from "@/lib/auth/ownership";
 import { matchAndPersistCandidate } from "@/lib/candidates/matchAndPersist";
 import {
   candidateRowToMatchingInput,
@@ -69,6 +70,8 @@ export const POST = withErrorHandling(async (request: Request) => {
   if (!candidateResult.data) {
     return NextResponse.json({ error: "Candidate not found." }, { status: 404 });
   }
+  const forbidden = forbidUnlessOwner(jobResult.data.user_id, auth.user.id, "job");
+  if (forbidden) return forbidden;
 
   const jobInput = jobRowToMatchingInput(jobResult.data);
   const candidateInput = candidateRowToMatchingInput(candidateResult.data);

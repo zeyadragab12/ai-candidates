@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { env } from "@/lib/env";
 import { requireUser } from "@/lib/api/requireUser";
+import { forbidUnlessOwner } from "@/lib/auth/ownership";
 import { getSearchProvider } from "@/lib/search";
 import { getEnrichmentProvider } from "@/lib/enrichment";
 import { extractLinkedInSlug } from "@/lib/enrichment/ApifyLinkedInProvider";
@@ -306,7 +307,7 @@ export const POST = withErrorHandling(async (
 
   const job = await supabase
     .from("jobs")
-    .select("id, location, city")
+    .select("id, location, city, user_id")
     .eq("id", jobId)
     .maybeSingle();
 
@@ -316,6 +317,8 @@ export const POST = withErrorHandling(async (
   if (!job.data) {
     return NextResponse.json({ error: "Job not found." }, { status: 404 });
   }
+  const forbidden = forbidUnlessOwner(job.data.user_id, auth.user.id, "job");
+  if (forbidden) return forbidden;
   // Non-geographic values ("Remote", "Global", etc.) must never bias
   // SerpApi's geo-targeted search — see resolveEgyptSearchLocation's doc
   // comment. This is separate from job.location itself, which is left

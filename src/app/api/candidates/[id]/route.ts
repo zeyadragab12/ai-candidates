@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireUser } from "@/lib/api/requireUser";
+import { forbidUnlessOwner } from "@/lib/auth/ownership";
 import { withErrorHandling } from "@/lib/errors";
 
 interface RouteParams {
@@ -62,6 +63,20 @@ export const DELETE = withErrorHandling(async (_request: Request, { params }: Ro
   // job_candidates all reference candidates with ON DELETE CASCADE, so this
   // single delete removes every dependent row for this candidate without
   // touching the jobs it was ever linked to.
+  const existing = await supabase
+    .from("candidates")
+    .select("user_id")
+    .eq("id", id)
+    .maybeSingle();
+  if (existing.error) {
+    return NextResponse.json({ error: "Failed to load candidate." }, { status: 500 });
+  }
+  if (!existing.data) {
+    return NextResponse.json({ error: "Candidate not found." }, { status: 404 });
+  }
+  const forbidden = forbidUnlessOwner(existing.data.user_id, auth.user.id, "candidate");
+  if (forbidden) return forbidden;
+
   const { data, error } = await supabase
     .from("candidates")
     .delete()

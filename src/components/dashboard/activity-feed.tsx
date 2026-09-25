@@ -1,9 +1,9 @@
 import { History } from "lucide-react";
 
-import type { AdminActivityRow } from "@/lib/admin/getAdminDashboardData";
+import type { ActivityFeedItem } from "@/lib/activity/feed";
 import { formatRelativeTime } from "@/lib/dates/formatRelativeTime";
 
-export function ActivityFeed({ activity }: { activity: AdminActivityRow[] }) {
+export function ActivityFeed({ activity }: { activity: ActivityFeedItem[] }) {
   if (activity.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-10 text-center">

@@ -1,17 +1,27 @@
+import Link from "next/link";
+
 import { Badge, matchScoreTone } from "@/components/ui/badge";
 import { EmptyCell } from "@/components/ui/empty-cell";
-import type { AdminUserRow } from "@/lib/admin/getAdminDashboardData";
 import { ROLE_LABELS } from "@/lib/auth/roleDefinitions";
 import { formatRelativeTime } from "@/lib/dates/formatRelativeTime";
+import type { UserPerformanceRow } from "@/lib/performance/userStats";
 
-export function UserPerformanceTable({ users }: { users: AdminUserRow[] }) {
+export function UserPerformanceTable({
+  users,
+  showTeam = true,
+  linkToMember = false,
+}: {
+  users: UserPerformanceRow[];
+  showTeam?: boolean;
+  linkToMember?: boolean;
+}) {
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-200">
       <table className="w-full min-w-[1040px] text-sm" data-testid="admin-performance-table">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50/80 text-left text-xs uppercase tracking-wide text-slate-500">
             <th className="p-3 font-medium">User</th>
-            <th className="p-3 font-medium">Team</th>
+            {showTeam && <th className="p-3 font-medium">Team</th>}
             <th className="p-3 text-right font-medium">Jobs</th>
             <th className="p-3 text-right font-medium">Runs</th>
             <th className="p-3 text-right font-medium">Candidates</th>
@@ -30,13 +40,24 @@ export function UserPerformanceTable({ users }: { users: AdminUserRow[] }) {
               className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60"
             >
               <td className="p-3">
-                <p className="font-medium text-slate-900">{user.name}</p>
+                {linkToMember ? (
+                  <Link
+                    href={`/manager/team/${user.id}`}
+                    className="font-medium text-slate-900 underline-offset-4 hover:text-indigo-700 hover:underline"
+                  >
+                    {user.name}
+                  </Link>
+                ) : (
+                  <p className="font-medium text-slate-900">{user.name}</p>
+                )}
                 <p className="text-xs text-slate-500">
                   {ROLE_LABELS[user.role]}
                   {!user.isActive && " · Inactive"}
                 </p>
               </td>
-              <td className="p-3 text-slate-600">{user.teamName ?? <EmptyCell />}</td>
+              {showTeam && (
+                <td className="p-3 text-slate-600">{user.teamName ?? <EmptyCell />}</td>
+              )}
               <td className="p-3 text-right tabular-nums text-slate-700">{user.jobs}</td>
               <td className="p-3 text-right tabular-nums text-slate-700">
                 {user.completedRuns}

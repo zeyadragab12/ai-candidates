@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getAIProvider } from "@/lib/ai";
 import { requireUser } from "@/lib/api/requireUser";
+import { forbidUnlessOwner } from "@/lib/auth/ownership";
 import { runBatchMatch } from "@/lib/candidates/batchMatch";
 import {
   candidateRowToMatchingInput,
@@ -33,6 +34,8 @@ export const POST = withErrorHandling(async (_request: Request, { params }: Rout
   if (!job.data) {
     return NextResponse.json({ error: "Job not found." }, { status: 404 });
   }
+  const forbidden = forbidUnlessOwner(job.data.user_id, auth.user.id, "job");
+  if (forbidden) return forbidden;
 
   const { data: linked, error: linkError } = await supabase
     .from("job_candidates")

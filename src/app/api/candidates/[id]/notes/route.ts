@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { requireUser } from "@/lib/api/requireUser";
+import { forbidUnlessOwner } from "@/lib/auth/ownership";
 import { withErrorHandling } from "@/lib/errors";
 
 interface RouteParams {
@@ -20,10 +21,10 @@ async function verifyCandidateOwnership(
 ) {
   const { data, error } = await supabase
     .from("candidates")
-    .select("id")
+    .select("id, user_id")
     .eq("id", candidateId)
     .maybeSingle();
-  return { exists: !error && !!data, error };
+  return { exists: !error && !!data, ownerId: (data?.user_id as string | undefined) ?? null, error };
 }
 
 export const GET = withErrorHandling(async (_request: Request, { params }: RouteParams) => {
@@ -84,6 +85,8 @@ export const POST = withErrorHandling(async (request: Request, { params }: Route
   if (!ownership.exists) {
     return NextResponse.json({ error: "Candidate not found." }, { status: 404 });
   }
+  const forbidden = forbidUnlessOwner(ownership.ownerId, user.id, "candidate");
+  if (forbidden) return forbidden;
 
   const { data, error } = await supabase
     .from("candidate_notes")

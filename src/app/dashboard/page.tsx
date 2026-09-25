@@ -163,7 +163,7 @@ export default async function DashboardPage() {
                     Candidate Pipeline Stages
                   </CardTitle>
                   <CardDescription className="text-xs text-slate-500">
-                    Real-time status breakdown across all active sourcing jobs
+                    Real-time status breakdown across your sourcing jobs
                   </CardDescription>
                 </div>
                 <Badge tone="neutral">
@@ -230,7 +230,7 @@ export default async function DashboardPage() {
                 Sourcing Files
               </CardTitle>
               <CardDescription className="text-xs text-slate-500">
-                Every job requisition and its sourcing run, in one place
+                Your job requisitions and their sourcing runs, in one place
               </CardDescription>
             </div>
             <Button asChild size="sm">

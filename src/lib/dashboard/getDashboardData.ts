@@ -113,24 +113,39 @@ export async function getDashboardData(
     todaysCandidatesCountRes,
     todaysCandidatesRes,
   ] = await Promise.all([
-    supabase.from("jobs").select("*", { count: "exact", head: true }),
-    supabase.from("candidates").select("*", { count: "exact", head: true }),
+    // This is the personal dashboard for every role, so every query is
+    // scoped to the current user's own work. Team and org views live at
+    // /manager and /admin; RLS alone would widen this for those roles.
+    supabase
+      .from("jobs")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", currentUserId),
     supabase
       .from("candidates")
       .select("*", { count: "exact", head: true })
+      .eq("user_id", currentUserId),
+    supabase
+      .from("candidates")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", currentUserId)
       .eq("status", "Shortlisted"),
-    supabase.from("candidate_matches").select("match_score, search_run_id"),
-    supabase.from("candidates").select("status"),
+    supabase
+      .from("candidate_matches")
+      .select("match_score, search_run_id, jobs!inner(user_id)")
+      .eq("jobs.user_id", currentUserId),
+    supabase.from("candidates").select("status").eq("user_id", currentUserId),
     supabase
       .from("search_runs")
       .select(
-        "id, job_id, status, created_at, started_at, completed_at, created_by_email, jobs(title)",
+        "id, job_id, status, created_at, started_at, completed_at, created_by_email, jobs!inner(title, user_id)",
       )
+      .eq("jobs.user_id", currentUserId)
       .order("created_at", { ascending: false })
       .limit(20),
     supabase
       .from("job_candidates")
-      .select("job_id, candidate_id, search_run_id, candidates(status)"),
+      .select("job_id, candidate_id, search_run_id, candidates(status), jobs!inner(user_id)")
+      .eq("jobs.user_id", currentUserId),
     supabase.from("candidate_views").select("candidate_id, job_id").eq("user_id", currentUserId),
     supabase
       .from("search_run_access")

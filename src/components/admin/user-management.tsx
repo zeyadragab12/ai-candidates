@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toast";
-import type { AdminUserRow } from "@/lib/admin/getAdminDashboardData";
+import type { UserPerformanceRow } from "@/lib/performance/userStats";
 import { ROLE_LABELS, ROLES, type Role } from "@/lib/auth/roleDefinitions";
 
 // Radix Select can't use "" as an item value, so "no team" needs a sentinel.
@@ -25,7 +25,7 @@ export function UserManagement({
   teamOptions,
   currentUserId,
 }: {
-  users: AdminUserRow[];
+  users: UserPerformanceRow[];
   teamOptions: { id: string; name: string }[];
   currentUserId: string;
 }) {
@@ -34,7 +34,7 @@ export function UserManagement({
   const [, startTransition] = useTransition();
 
   async function updateUser(
-    user: AdminUserRow,
+    user: UserPerformanceRow,
     changes: { role?: Role; teamId?: string | null; isActive?: boolean },
     successMessage: string,
   ) {

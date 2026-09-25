@@ -8,7 +8,7 @@ import { jobCreateSchema } from "@/types/job";
 export const GET = withErrorHandling(async (request: Request) => {
   const auth = await requireUser();
   if ("error" in auth) return auth.error;
-  const { supabase } = auth;
+  const { user, supabase } = auth;
 
   const { searchParams } = new URL(request.url);
   const page = Math.max(1, Number(searchParams.get("page") ?? "1"));
@@ -19,6 +19,9 @@ export const GET = withErrorHandling(async (request: Request) => {
   const { data, error, count } = await supabase
     .from("jobs")
     .select("*", { count: "exact" })
+    // The personal workspace lists only your own jobs, whatever your role;
+    // managers/admins see team or org jobs from /manager and /admin.
+    .eq("user_id", user.id)
     .order("created_at", { ascending: false })
     .range(from, to);
 

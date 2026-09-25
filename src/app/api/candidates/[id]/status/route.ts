@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { requireUser } from "@/lib/api/requireUser";
 import { logActivity } from "@/lib/activity/log";
+import { forbidUnlessOwner } from "@/lib/auth/ownership";
 import { withErrorHandling } from "@/lib/errors";
 import { CANDIDATE_STATUSES } from "@/lib/candidates/statuses";
 
@@ -42,7 +43,7 @@ export const PUT = withErrorHandling(async (request: Request, { params }: RouteP
 
   const existing = await supabase
     .from("candidates")
-    .select("id, status")
+    .select("id, status, user_id")
     .eq("id", candidateId)
     .maybeSingle();
 
@@ -55,6 +56,8 @@ export const PUT = withErrorHandling(async (request: Request, { params }: RouteP
   if (!existing.data) {
     return NextResponse.json({ error: "Candidate not found." }, { status: 404 });
   }
+  const forbidden = forbidUnlessOwner(existing.data.user_id, auth.user.id, "candidate");
+  if (forbidden) return forbidden;
 
   const newStatus = parsed.data.status;
 

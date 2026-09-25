@@ -28,6 +28,13 @@ export function Badge({
   );
 }
 
+export function runStatusTone(status: string): BadgeTone {
+  if (status === "complete") return "good";
+  if (status === "running" || status === "pending") return "warning";
+  if (status === "error") return "critical";
+  return "neutral";
+}
+
 /** Buckets a 0–100 match score into the tone a CEO would expect at a glance:
  * strong (green), workable (amber), weak (red). No score yet = neutral gray. */
 export function matchScoreTone(score: number | null | undefined): BadgeTone {

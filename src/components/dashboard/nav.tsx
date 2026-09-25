@@ -15,36 +15,42 @@ const LINKS = [
   { href: "/settings", label: "Settings" },
 ];
 
+const TEAM_LINK = { href: "/manager", label: "Team" };
 const ADMIN_LINK = { href: "/admin", label: "Admin" };
 
-// Only decides whether to show the Admin link; /admin itself and every admin
-// API re-check the role server-side. Cached per page load so client-side
+// Only decides which role links to show; /manager, /admin and their APIs
+// re-check the role server-side. Cached per page load so client-side
 // navigation doesn't re-query on every page.
-let isAdminPromise: Promise<boolean> | null = null;
+let rolePromise: Promise<string | null> | null = null;
 
-function fetchIsAdmin(): Promise<boolean> {
-  isAdminPromise ??= Promise.resolve(createClient().rpc("is_admin")).then(
-    ({ data, error }) => !error && data === true,
-    () => false,
+function fetchRole(): Promise<string | null> {
+  rolePromise ??= Promise.resolve(createClient().rpc("current_profile_role")).then(
+    ({ data, error }) => (!error && typeof data === "string" ? data : null),
+    () => null,
   );
-  return isAdminPromise;
+  return rolePromise;
 }
 
 export function DashboardNav() {
   const pathname = usePathname();
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [role, setRole] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    fetchIsAdmin().then((result) => {
-      if (!cancelled) setIsAdmin(result);
+    fetchRole().then((result) => {
+      if (!cancelled) setRole(result);
     });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const links = isAdmin ? [...LINKS, ADMIN_LINK] : LINKS;
+  const links =
+    role === "admin"
+      ? [...LINKS, TEAM_LINK, ADMIN_LINK]
+      : role === "hr_manager"
+        ? [...LINKS, TEAM_LINK]
+        : LINKS;
 
   return (
     <header className="sticky top-0 z-10 border-b border-border/80 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">

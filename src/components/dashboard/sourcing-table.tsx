@@ -1,18 +1,11 @@
 import { Search } from "lucide-react";
 import Link from "next/link";
 
-import { Badge, type BadgeTone } from "@/components/ui/badge";
+import { Badge, runStatusTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyCell } from "@/components/ui/empty-cell";
 import type { UnifiedSourcingRow } from "@/lib/dashboard/getDashboardData";
 import { formatRelativeTime } from "@/lib/dates/formatRelativeTime";
-
-function getStatusTone(status: string): BadgeTone {
-  if (status === "complete") return "good";
-  if (status === "running" || status === "pending") return "warning";
-  if (status === "error") return "critical";
-  return "neutral";
-}
 
 export function SourcingTable({ rows }: { rows: UnifiedSourcingRow[] }) {
   if (rows.length === 0) {
@@ -57,7 +50,7 @@ export function SourcingTable({ rows }: { rows: UnifiedSourcingRow[] }) {
                 {row.jobTitle}
               </td>
               <td className="p-3">
-                <Badge tone={getStatusTone(row.sourcingStatus)} className="capitalize">
+                <Badge tone={runStatusTone(row.sourcingStatus)} className="capitalize">
                   {row.sourcingStatus}
                 </Badge>
               </td>

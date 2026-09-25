@@ -1,4 +1,5 @@
 import { Users } from "lucide-react";
+import Link from "next/link";
 
 import { TeamManagerSelect } from "@/components/admin/team-manager-select";
 import { Badge, matchScoreTone } from "@/components/ui/badge";
@@ -44,7 +45,14 @@ export function TeamsOverview({
         <tbody>
           {teams.map((team) => (
             <tr key={team.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60">
-              <td className="p-3 font-medium text-slate-900">{team.name}</td>
+              <td className="p-3">
+                <Link
+                  href={`/manager?teamId=${team.id}`}
+                  className="font-medium text-slate-900 underline-offset-4 hover:text-indigo-700 hover:underline"
+                >
+                  {team.name}
+                </Link>
+              </td>
               <td className="p-3">
                 <TeamManagerSelect
                   teamId={team.id}
