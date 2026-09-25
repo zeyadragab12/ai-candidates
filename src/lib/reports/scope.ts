@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { isRejectedSignup } from "@/lib/auth/allowlist";
 import type { Profile } from "@/lib/auth/roles";
 import type { ProfileRow } from "@/lib/performance/userStats";
 
@@ -41,7 +42,7 @@ export async function resolveReportScope(
         kind: team ? "team" : "org",
         label: team ? team.name : "Whole organization",
         teamId: team?.id ?? null,
-        members: (data ?? []) as ProfileRow[],
+        members: ((data ?? []) as ProfileRow[]).filter((member) => !isRejectedSignup(member)),
       },
       teamOptions,
     };

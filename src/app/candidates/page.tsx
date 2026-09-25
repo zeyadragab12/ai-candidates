@@ -250,7 +250,9 @@ function JobPicker() {
   );
 }
 
-function CandidatesTable({ jobId }: { jobId: string }) {
+// `readOnly`: viewing someone else's file (e.g. as their manager). Edit
+// controls are hidden; the API rejects edits regardless.
+function CandidatesTable({ jobId, readOnly }: { jobId: string; readOnly: boolean }) {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -419,7 +421,7 @@ function CandidatesTable({ jobId }: { jobId: string }) {
     <div className="flex flex-col gap-4">
       {filtersUi}
 
-      {total > 0 && (
+      {total > 0 && !readOnly && (
         <div className="flex flex-col gap-2">
           <Button
             type="button"
@@ -529,22 +531,28 @@ function CandidatesTable({ jobId }: { jobId: string }) {
                     {formatDateTime(candidate.created_at)}
                   </td>
                   <td className="p-3">
-                    <Select
-                      value={candidate.status}
-                      onValueChange={(status) => handleStatusChange(candidate.id, status)}
-                      disabled={updatingStatusId === candidate.id}
-                    >
-                      <SelectTrigger className="h-8 w-[140px] text-xs" data-testid="status-select">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CANDIDATE_STATUSES.map((status) => (
-                          <SelectItem key={status} value={status}>
-                            {status}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {readOnly ? (
+                      <Badge tone="neutral" data-testid="status-readonly">
+                        {candidate.status}
+                      </Badge>
+                    ) : (
+                      <Select
+                        value={candidate.status}
+                        onValueChange={(status) => handleStatusChange(candidate.id, status)}
+                        disabled={updatingStatusId === candidate.id}
+                      >
+                        <SelectTrigger className="h-8 w-[140px] text-xs" data-testid="status-select">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {CANDIDATE_STATUSES.map((status) => (
+                            <SelectItem key={status} value={status}>
+                              {status}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </td>
                   <td className="p-3">
                     {candidate.profile_url ? (
@@ -597,17 +605,19 @@ function CandidatesTable({ jobId }: { jobId: string }) {
                             <Eye className="h-4 w-4" aria-hidden="true" />
                           </Link>
                         </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="text-muted-foreground hover:text-destructive"
-                          onClick={() => setPendingDeleteId(candidate.id)}
-                          aria-label={`Delete ${candidate.name ?? "candidate"}`}
-                          data-testid="delete-candidate-button"
-                        >
-                          <Trash2 className="h-4 w-4" aria-hidden="true" />
-                        </Button>
+                        {!readOnly && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="text-muted-foreground hover:text-destructive"
+                            onClick={() => setPendingDeleteId(candidate.id)}
+                            aria-label={`Delete ${candidate.name ?? "candidate"}`}
+                            data-testid="delete-candidate-button"
+                          >
+                            <Trash2 className="h-4 w-4" aria-hidden="true" />
+                          </Button>
+                        )}
                       </div>
                     )}
                   </td>
@@ -648,11 +658,17 @@ function CandidatesTable({ jobId }: { jobId: string }) {
   );
 }
 
+interface JobMeta {
+  title: string | null;
+  canEdit: boolean;
+  ownerName: string | null;
+}
+
 function CandidatesPageContent() {
   const searchParams = useSearchParams();
   const jobId = searchParams.get("jobId");
   const runId = searchParams.get("runId");
-  const [jobTitle, setJobTitle] = useState<string | null>(null);
+  const [job, setJob] = useState<JobMeta | null>(null);
 
   useEffect(() => {
     if (!runId) return;
@@ -664,14 +680,20 @@ function CandidatesPageContent() {
 
   useEffect(() => {
     if (!jobId) {
-      setJobTitle(null);
+      setJob(null);
       return;
     }
     const controller = new AbortController();
-    setJobTitle(null);
+    setJob(null);
     fetch(`/api/jobs/${jobId}`, { signal: controller.signal })
       .then((res) => (res.ok ? res.json() : null))
-      .then((data) => setJobTitle(data?.title ?? null))
+      .then((data) =>
+        setJob(
+          data
+            ? { title: data.title ?? null, canEdit: data.can_edit === true, ownerName: data.owner_name ?? null }
+            : null,
+        ),
+      )
       .catch((err) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
       });
@@ -704,11 +726,22 @@ function CandidatesPageContent() {
           <Card>
             <CardHeader>
               <CardTitle className="font-display text-xl">
-                Candidates for {jobTitle ?? "this job"}
+                Candidates for {job?.title ?? "this job"}
               </CardTitle>
+              {job && !job.canEdit && (
+                <p
+                  className="mt-2 inline-flex w-fit items-center gap-2 rounded-lg bg-indigo-50 px-3 py-1.5 text-sm text-indigo-800"
+                  data-testid="readonly-banner"
+                >
+                  <Eye className="h-4 w-4" aria-hidden="true" />
+                  Viewing {job.ownerName ? `${job.ownerName}'s` : "a teammate's"} sourcing file ·
+                  read-only
+                </p>
+              )}
             </CardHeader>
             <CardContent>
-              <CandidatesTable jobId={jobId} />
+              {/* Read-only until the job loads, so edit controls never flash for a viewer. */}
+              <CandidatesTable jobId={jobId} readOnly={!job?.canEdit} />
             </CardContent>
           </Card>
         )}

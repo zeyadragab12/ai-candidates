@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { logActivity } from "@/lib/activity/log";
 import { requireUser } from "@/lib/api/requireUser";
-import { forbidUnlessOwner } from "@/lib/auth/ownership";
+import { describeOwnership, forbidUnlessOwner } from "@/lib/auth/ownership";
 import type { createClient } from "@/lib/supabase/server";
 import { withErrorHandling } from "@/lib/errors";
 import { jobUpdateSchema } from "@/types/job";
@@ -45,7 +45,8 @@ export const GET = withErrorHandling(async (_request: Request, { params }: Route
     return NextResponse.json({ error: "Job not found." }, { status: 404 });
   }
 
-  return NextResponse.json(data);
+  const ownership = await describeOwnership(supabase, data.user_id, auth.user.id);
+  return NextResponse.json({ ...data, ...ownership });
 });
 
 export const PUT = withErrorHandling(async (request: Request, { params }: RouteParams) => {

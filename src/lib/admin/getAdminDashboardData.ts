@@ -6,6 +6,7 @@ import {
   type ActivityFeedItem,
   type ActivityLogRow,
 } from "@/lib/activity/feed";
+import { isRejectedSignup } from "@/lib/auth/allowlist";
 import {
   combinedAverageMatch,
   loadUserStats,
@@ -81,7 +82,9 @@ export async function getAdminDashboardData(
       : null;
 
   const { stats, signIns } = userStats;
-  const profiles = (profilesRes.data ?? []) as ProfileRow[];
+  const profiles = ((profilesRes.data ?? []) as ProfileRow[]).filter(
+    (profile) => !isRejectedSignup(profile),
+  );
   const teams = (teamsRes.data ?? []) as TeamRow[];
   const teamNames = new Map(teams.map((team) => [team.id, team.name]));
   const emailsById = new Map(profiles.map((profile) => [profile.id, profile.email]));
@@ -97,7 +100,9 @@ export async function getAdminDashboardData(
     )
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  const allStats = Array.from(stats.values());
+  const allStats = profiles
+    .map((profile) => stats.get(profile.id))
+    .filter((row): row is UserStatsRow => row !== undefined);
 
   const teamRows: AdminTeamRow[] = teams.map((team) => {
     const members = profiles.filter((profile) => profile.team_id === team.id);

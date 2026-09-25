@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { logActivity } from "@/lib/activity/log";
 import { requireUser } from "@/lib/api/requireUser";
-import { forbidUnlessOwner } from "@/lib/auth/ownership";
+import { describeOwnership, forbidUnlessOwner } from "@/lib/auth/ownership";
 import { withErrorHandling } from "@/lib/errors";
 
 interface RouteParams {
@@ -51,7 +51,8 @@ export const GET = withErrorHandling(async (request: Request, { params }: RouteP
     );
   }
 
-  return NextResponse.json({ ...data, match });
+  const ownership = await describeOwnership(supabase, data.user_id, auth.user.id);
+  return NextResponse.json({ ...data, match, ...ownership });
 });
 
 export const DELETE = withErrorHandling(async (_request: Request, { params }: RouteParams) => {

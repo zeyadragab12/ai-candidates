@@ -1,4 +1,24 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+
+import { getDisplayName } from "@/lib/users/displayName";
+
+/**
+ * What the UI needs to render a record the caller may be viewing on someone
+ * else's behalf (e.g. a manager opening a team member's file): whether to
+ * show edit controls, and whose record it is. Display only — the write
+ * routes enforce ownership themselves.
+ */
+export async function describeOwnership(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any, any, any>,
+  ownerId: string,
+  userId: string,
+): Promise<{ can_edit: boolean; owner_name: string | null }> {
+  if (ownerId === userId) return { can_edit: true, owner_name: null };
+  const { data } = await supabase.from("profiles").select("email").eq("id", ownerId).maybeSingle();
+  return { can_edit: false, owner_name: getDisplayName(data?.email as string | undefined) };
+}
 
 /**
  * Managers and admins can read their team's / everyone's records, but

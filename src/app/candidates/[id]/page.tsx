@@ -1,5 +1,6 @@
 "use client";
 
+import { Eye } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 
@@ -49,6 +50,9 @@ interface Candidate {
   experience_years: number | null;
   status: string;
   match: Match | null;
+  /** False when viewing someone else's candidate (e.g. as their manager). */
+  can_edit: boolean;
+  owner_name: string | null;
 }
 
 interface Note {
@@ -186,6 +190,16 @@ function CandidateProfileContent() {
     <main className="min-h-screen">
       <DashboardNav />
       <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6 sm:py-8">
+        {!candidate.can_edit && (
+          <p
+            className="flex items-center gap-2 rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-800"
+            data-testid="readonly-banner"
+          >
+            <Eye className="h-4 w-4 shrink-0" aria-hidden="true" />
+            Viewing {candidate.owner_name ? `${candidate.owner_name}'s` : "a teammate's"} candidate
+            · read-only
+          </p>
+        )}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-4">
@@ -350,22 +364,32 @@ function CandidateProfileContent() {
             <CardTitle className="font-display text-xl">Status</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-2">
-            <Select
-              value={candidate.status}
-              onValueChange={handleStatusChange}
-              disabled={isUpdatingStatus}
-            >
-              <SelectTrigger className="w-[200px]" data-testid="status-select">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CANDIDATE_STATUSES.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {status}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {!candidate.can_edit ? (
+              <p className="text-sm" data-testid="status-readonly">
+                <span className="font-medium">{candidate.status}</span>
+                <span className="text-muted-foreground">
+                  {" "}
+                  · only {candidate.owner_name ?? "the owner"} can change this
+                </span>
+              </p>
+            ) : (
+              <Select
+                value={candidate.status}
+                onValueChange={handleStatusChange}
+                disabled={isUpdatingStatus}
+              >
+                <SelectTrigger className="w-[200px]" data-testid="status-select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CANDIDATE_STATUSES.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {status}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             {statusError && (
               <p role="alert" className="text-sm text-destructive">
                 {statusError}
@@ -379,28 +403,30 @@ function CandidateProfileContent() {
             <CardTitle className="font-display text-xl">Recruiter Notes</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2">
-              <Textarea
-                value={noteDraft}
-                onChange={(e) => setNoteDraft(e.target.value)}
-                placeholder="Add a note about this candidate..."
-                data-testid="note-input"
-              />
-              <Button
-                type="button"
-                onClick={handleAddNote}
-                disabled={isSavingNote || !noteDraft.trim()}
-                data-testid="note-add-button"
-                className="self-start"
-              >
-                {isSavingNote ? "Saving..." : "Add Note"}
-              </Button>
-              {noteError && (
-                <p role="alert" className="text-sm text-destructive">
-                  {noteError}
-                </p>
-              )}
-            </div>
+            {candidate.can_edit && (
+              <div className="flex flex-col gap-2">
+                <Textarea
+                  value={noteDraft}
+                  onChange={(e) => setNoteDraft(e.target.value)}
+                  placeholder="Add a note about this candidate..."
+                  data-testid="note-input"
+                />
+                <Button
+                  type="button"
+                  onClick={handleAddNote}
+                  disabled={isSavingNote || !noteDraft.trim()}
+                  data-testid="note-add-button"
+                  className="self-start"
+                >
+                  {isSavingNote ? "Saving..." : "Add Note"}
+                </Button>
+                {noteError && (
+                  <p role="alert" className="text-sm text-destructive">
+                    {noteError}
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="flex flex-col gap-3" data-testid="notes-list">
               {notes.length === 0 ? (
