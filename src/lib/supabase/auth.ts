@@ -15,6 +15,25 @@ export async function signOut() {
   return supabase.auth.signOut();
 }
 
+export type AuthEvent =
+  | { event: "login" }
+  | { event: "logout" }
+  | { event: "login_failed"; email: string };
+
+/** Best-effort: records the event in the activity log, never blocks or breaks sign-in. */
+export async function reportAuthEvent(event: AuthEvent): Promise<void> {
+  try {
+    await fetch("/api/auth/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(event),
+      keepalive: true,
+    });
+  } catch {
+    // Logging must never get in the way of signing in or out.
+  }
+}
+
 export async function signInWithGoogle() {
   const supabase = createClient();
   return supabase.auth.signInWithOAuth({

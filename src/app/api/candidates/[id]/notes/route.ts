@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { logActivity } from "@/lib/activity/log";
 import { requireUser } from "@/lib/api/requireUser";
 import { forbidUnlessOwner } from "@/lib/auth/ownership";
 import { withErrorHandling } from "@/lib/errors";
@@ -21,10 +22,15 @@ async function verifyCandidateOwnership(
 ) {
   const { data, error } = await supabase
     .from("candidates")
-    .select("id, user_id")
+    .select("id, user_id, name")
     .eq("id", candidateId)
     .maybeSingle();
-  return { exists: !error && !!data, ownerId: (data?.user_id as string | undefined) ?? null, error };
+  return {
+    exists: !error && !!data,
+    ownerId: (data?.user_id as string | undefined) ?? null,
+    name: (data?.name as string | null | undefined) ?? null,
+    error,
+  };
 }
 
 export const GET = withErrorHandling(async (_request: Request, { params }: RouteParams) => {
@@ -101,6 +107,14 @@ export const POST = withErrorHandling(async (request: Request, { params }: Route
   if (error) {
     return NextResponse.json({ error: "Failed to save note." }, { status: 500 });
   }
+
+  await logActivity(supabase, {
+    userId: user.id,
+    action: "candidate.note_added",
+    entityType: "candidate",
+    entityId: candidateId,
+    description: `Added a note on ${ownership.name ?? "a candidate"}`,
+  });
 
   return NextResponse.json(data, { status: 201 });
 });

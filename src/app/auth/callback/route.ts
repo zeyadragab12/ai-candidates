@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { logActivity } from "@/lib/activity/log";
 import { isEmailAllowed } from "@/lib/auth/allowlist";
 import { createClient } from "@/lib/supabase/server";
 
@@ -23,6 +24,15 @@ export async function GET(request: Request) {
     await supabase.auth.signOut();
     return NextResponse.redirect(`${origin}/login?error=not_allowed`);
   }
+
+  await logActivity(supabase, {
+    userId: data.user.id,
+    action: "auth.login",
+    entityType: "auth",
+    entityId: data.user.id,
+    description: "Signed in with Google",
+    metadata: { method: "google" },
+  });
 
   return NextResponse.redirect(`${origin}${redirectTo}`);
 }

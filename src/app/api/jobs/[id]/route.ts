@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { logActivity } from "@/lib/activity/log";
 import { requireUser } from "@/lib/api/requireUser";
 import { forbidUnlessOwner } from "@/lib/auth/ownership";
 import type { createClient } from "@/lib/supabase/server";
@@ -91,6 +92,15 @@ export const PUT = withErrorHandling(async (request: Request, { params }: RouteP
     return NextResponse.json({ error: "Job not found." }, { status: 404 });
   }
 
+  await logActivity(supabase, {
+    userId: auth.user.id,
+    action: "job.updated",
+    entityType: "job",
+    entityId: id,
+    description: `Updated job "${data.title}"`,
+    metadata: { fields: Object.keys(parsed.data) },
+  });
+
   return NextResponse.json(data);
 });
 
@@ -119,6 +129,14 @@ export const DELETE = withErrorHandling(async (_request: Request, { params }: Ro
   if (!data) {
     return NextResponse.json({ error: "Job not found." }, { status: 404 });
   }
+
+  await logActivity(supabase, {
+    userId: auth.user.id,
+    action: "job.deleted",
+    entityType: "job",
+    entityId: id,
+    description: `Deleted job "${data.title}"`,
+  });
 
   return NextResponse.json({ success: true });
 });

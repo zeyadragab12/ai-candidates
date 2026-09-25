@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { logActivity } from "@/lib/activity/log";
 import { requireUser } from "@/lib/api/requireUser";
 import { forbidUnlessOwner } from "@/lib/auth/ownership";
 import { withErrorHandling } from "@/lib/errors";
@@ -93,6 +94,14 @@ export const DELETE = withErrorHandling(async (_request: Request, { params }: Ro
   if (!data) {
     return NextResponse.json({ error: "Candidate not found." }, { status: 404 });
   }
+
+  await logActivity(supabase, {
+    userId: auth.user.id,
+    action: "candidate.deleted",
+    entityType: "candidate",
+    entityId: id,
+    description: `Deleted candidate ${data.name ?? "(unnamed)"}`,
+  });
 
   return NextResponse.json({ success: true });
 });

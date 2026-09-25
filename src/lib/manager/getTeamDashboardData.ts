@@ -6,11 +6,8 @@ import {
   type ActivityFeedItem,
   type ActivityLogRow,
 } from "@/lib/activity/feed";
-import {
-  hasActiveFilters,
-  resolveDateWindow,
-  type SourcingFileFilters,
-} from "@/lib/manager/filters";
+import { resolveDateWindow } from "@/lib/dates/dateRange";
+import { hasActiveFilters, type SourcingFileFilters } from "@/lib/manager/filters";
 import {
   combinedAverageMatch,
   loadUserStats,
@@ -118,7 +115,28 @@ export async function fetchSourcingFiles(
     p_limit: limit,
   });
 
-  const rows = ((data ?? []) as SourcingFileRpcRow[]).map((row) => ({
+  return { rows: toSourcingFileRows(data), error: Boolean(error) };
+}
+
+/** Files owned by any of `ownerIds` created in the window; RLS still limits it to files the caller may see. */
+export async function fetchSourcingFilesForOwners(
+  supabase: AnySupabaseClient,
+  ownerIds: string[],
+  window: { from: string | null; to: string | null },
+  limit = 500,
+): Promise<{ rows: TeamSourcingFileRow[]; error: boolean }> {
+  if (ownerIds.length === 0) return { rows: [], error: false };
+  const { data, error } = await supabase.rpc("sourcing_files", {
+    p_owner_ids: ownerIds,
+    p_from: window.from,
+    p_to: window.to,
+    p_limit: limit,
+  });
+  return { rows: toSourcingFileRows(data), error: Boolean(error) };
+}
+
+function toSourcingFileRows(data: unknown): TeamSourcingFileRow[] {
+  return ((data ?? []) as SourcingFileRpcRow[]).map((row) => ({
     runId: row.run_id,
     jobId: row.job_id,
     jobTitle: row.job_title || "Untitled Role",
@@ -136,8 +154,6 @@ export async function fetchSourcingFiles(
       row.last_accessed_by_id !== null && row.last_accessed_by_id !== row.owner_id,
     lastActivityAt: row.last_activity_at,
   }));
-
-  return { rows, error: Boolean(error) };
 }
 
 /** Returns null when the caller can't see the team (RLS) or it doesn't exist. */

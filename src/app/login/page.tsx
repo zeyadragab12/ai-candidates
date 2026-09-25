@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/card";
 import { isEmailAllowed } from "@/lib/auth/allowlist";
 import {
+  reportAuthEvent,
   signInWithGoogle,
   signInWithPassword,
   signUpWithPassword,
@@ -75,6 +76,7 @@ function LoginForm() {
 
     if (authError) {
       setError(authError.message);
+      if (mode === "login") reportAuthEvent({ event: "login_failed", email });
       return;
     }
 
@@ -83,6 +85,7 @@ function LoginForm() {
       return;
     }
 
+    await reportAuthEvent({ event: "login" });
     router.push("/");
     router.refresh();
   }

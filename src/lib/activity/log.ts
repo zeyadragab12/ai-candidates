@@ -35,3 +35,27 @@ export async function logActivity(
     createLogger("activity-log").error("Failed to record activity", { error, event });
   }
 }
+
+/**
+ * Like logActivity, but skips the write if the same user already logged the
+ * same action with the same description within `windowMs` — for events
+ * triggered by page views, where a refresh shouldn't add another entry.
+ */
+export async function logActivityOnce(
+  supabase: SupabaseClient,
+  event: ActivityEvent,
+  windowMs: number,
+): Promise<void> {
+  const since = new Date(Date.now() - windowMs).toISOString();
+  const { data } = await supabase
+    .from("activity_log")
+    .select("id")
+    .eq("user_id", event.userId)
+    .eq("action", event.action)
+    .eq("description", event.description)
+    .gte("created_at", since)
+    .limit(1);
+
+  if (data && data.length > 0) return;
+  await logActivity(supabase, event);
+}

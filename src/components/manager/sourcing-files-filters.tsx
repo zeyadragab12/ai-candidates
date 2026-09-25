@@ -10,12 +10,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  DATE_RANGE_LABELS,
-  DATE_RANGES,
-  RUN_STATUSES,
-  type SourcingFileFilters,
-} from "@/lib/manager/filters";
+import { DATE_RANGE_LABELS, DATE_RANGES } from "@/lib/dates/dateRange";
+import { RUN_STATUSES, type SourcingFileFilters } from "@/lib/manager/filters";
 
 // Radix Select can't use "" as an item value; the filter parser treats any
 // unrecognized value (including this one) as "no filter".

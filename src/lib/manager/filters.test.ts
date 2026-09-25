@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  hasActiveFilters,
-  parseSourcingFileFilters,
-  parseUuid,
-  resolveDateWindow,
-} from "@/lib/manager/filters";
+import { resolveDateWindow } from "@/lib/dates/dateRange";
+import { hasActiveFilters, parseSourcingFileFilters, parseUuid } from "@/lib/manager/filters";
 
 const MEMBER_ID = "0669eb0c-7dd5-4584-92a7-63dfeb400148";
 

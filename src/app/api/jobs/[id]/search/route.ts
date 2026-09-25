@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { env } from "@/lib/env";
+import { logActivity } from "@/lib/activity/log";
 import { requireUser } from "@/lib/api/requireUser";
 import { forbidUnlessOwner } from "@/lib/auth/ownership";
 import { getSearchProvider } from "@/lib/search";
@@ -32,6 +33,27 @@ const requestSchema = z.object({
     .min(1, "At least one search query is required."),
 });
 
+async function logRunOutcome(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any, any, any>,
+  userId: string,
+  runId: string,
+  jobTitle: string,
+  outcome: "completed" | "failed",
+  detail?: string,
+): Promise<void> {
+  await logActivity(supabase, {
+    userId,
+    action: outcome === "completed" ? "sourcing_run.completed" : "sourcing_run.failed",
+    entityType: "search_run",
+    entityId: runId,
+    description:
+      outcome === "completed"
+        ? `Completed a sourcing run for "${jobTitle}"${detail ? ` (${detail})` : ""}`
+        : `Had a sourcing run fail for "${jobTitle}"`,
+  });
+}
+
 /**
  * Does the actual search work: runs after the HTTP response has already
  * been sent (see getJobQueue), so the client never blocks on it. Progress
@@ -44,6 +66,7 @@ async function processSearchRun(
   userId: string,
   jobId: string,
   runId: string,
+  jobTitle: string,
   queries: string[],
   provider: string,
   searchLocation: SerpApiLocationParams,
@@ -74,6 +97,7 @@ async function processSearchRun(
         completed_at: new Date().toISOString(),
       })
       .eq("id", runId);
+    await logRunOutcome(supabase, userId, runId, jobTitle, "failed");
     return;
   }
 
@@ -166,6 +190,7 @@ async function processSearchRun(
         completed_at: new Date().toISOString(),
       })
       .eq("id", runId);
+    await logRunOutcome(supabase, userId, runId, jobTitle, "failed");
     return;
   }
 
@@ -280,6 +305,15 @@ async function processSearchRun(
     })
     .eq("id", runId);
 
+  await logRunOutcome(
+    supabase,
+    userId,
+    runId,
+    jobTitle,
+    "completed",
+    `${dedupedCandidates.length} candidates, ${newCandidateCount} new`,
+  );
+
   logger.info("Search run complete", {
     jobId,
     runId,
@@ -307,7 +341,7 @@ export const POST = withErrorHandling(async (
 
   const job = await supabase
     .from("jobs")
-    .select("id, location, city, user_id")
+    .select("id, title, location, city, user_id")
     .eq("id", jobId)
     .maybeSingle();
 
@@ -319,6 +353,7 @@ export const POST = withErrorHandling(async (
   }
   const forbidden = forbidUnlessOwner(job.data.user_id, auth.user.id, "job");
   if (forbidden) return forbidden;
+  const jobTitle: string = job.data.title;
   // Non-geographic values ("Remote", "Global", etc.) must never bias
   // SerpApi's geo-targeted search — see resolveEgyptSearchLocation's doc
   // comment. This is separate from job.location itself, which is left
@@ -371,6 +406,15 @@ export const POST = withErrorHandling(async (
     );
   }
 
+  await logActivity(supabase, {
+    userId: auth.user.id,
+    action: "sourcing_run.started",
+    entityType: "search_run",
+    entityId: run.id,
+    description: `Started a sourcing run for "${jobTitle}"`,
+    metadata: { jobId, queryCount: queries.length, provider },
+  });
+
   // Enqueued, not awaited: the response below is sent immediately, and the
   // client tracks progress via GET /api/search/:runId/status. The request's
   // correlation id is passed through so background log lines can be tied
@@ -382,6 +426,7 @@ export const POST = withErrorHandling(async (
         auth.user.id,
         jobId,
         run.id,
+        jobTitle,
         queries,
         provider,
         searchLocation,
@@ -400,6 +445,7 @@ export const POST = withErrorHandling(async (
           completed_at: new Date().toISOString(),
         })
         .eq("id", run.id);
+      await logRunOutcome(supabase, auth.user.id, run.id, jobTitle, "failed");
     }
   }, getOrCreateRequestId(request));
 

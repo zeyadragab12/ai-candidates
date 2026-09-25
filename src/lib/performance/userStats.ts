@@ -92,13 +92,18 @@ export function pipelineCountsOf(rows: UserStatsRow[]): Record<string, number> {
 export async function loadUserStats(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: SupabaseClient<any, any, any>,
+  /** Counts only jobs/runs/candidates created in this window; all-time when omitted. */
+  window?: { from: string | null; to: string | null },
 ): Promise<{
   stats: Map<string, UserStatsRow>;
   signIns: Map<string, string | null>;
   error: boolean;
 }> {
   const [statsRes, signInsRes] = await Promise.all([
-    supabase.rpc("user_performance_stats"),
+    supabase.rpc(
+      "user_performance_stats",
+      window ? { p_from: window.from, p_to: window.to } : {},
+    ),
     supabase.rpc("profile_last_sign_ins"),
   ]);
 
