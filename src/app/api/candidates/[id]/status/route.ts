@@ -61,6 +61,17 @@ export const PUT = withErrorHandling(async (request: Request, { params }: RouteP
 
   const newStatus = parsed.data.status;
 
+  // Re-selecting the current status changes nothing, so it mustn't log a
+  // "change" or notify the manager.
+  if (newStatus === existing.data.status) {
+    const { data: unchanged } = await supabase
+      .from("candidates")
+      .select()
+      .eq("id", candidateId)
+      .single();
+    return NextResponse.json(unchanged);
+  }
+
   // A DB trigger (candidates_record_status_change) atomically records this
   // change in candidate_status_history within the same UPDATE statement, so
   // the status can never change without a corresponding history row.

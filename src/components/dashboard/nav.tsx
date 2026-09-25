@@ -21,16 +21,33 @@ const TEAM_LINK = { href: "/manager", label: "Team" };
 const ADMIN_LINK = { href: "/admin", label: "Admin" };
 
 // Only decides which role links to show; /manager, /admin and their APIs
-// re-check the role server-side. Cached per page load so client-side
-// navigation doesn't re-query on every page.
-let rolePromise: Promise<string | null> | null = null;
+// re-check the role server-side. Cached per signed-in user so client-side
+// navigation doesn't re-query on every page, while a sign-in, sign-out or
+// account switch in the same tab gets a fresh answer. An empty answer is
+// never cached: right after login the lookup can run before the session is
+// attached, and caching that would hide the links until a full reload.
+const roleCache = new Map<string, Promise<string | null>>();
 
-function fetchRole(): Promise<string | null> {
-  rolePromise ??= Promise.resolve(createClient().rpc("current_profile_role")).then(
-    ({ data, error }) => (!error && typeof data === "string" ? data : null),
-    () => null,
-  );
-  return rolePromise;
+async function fetchRole(): Promise<string | null> {
+  const supabase = createClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const userId = session?.user.id;
+  if (!userId) return null;
+
+  let pending = roleCache.get(userId);
+  if (!pending) {
+    pending = Promise.resolve(supabase.rpc("current_profile_role")).then(
+      ({ data, error }) => (!error && typeof data === "string" ? data : null),
+      () => null,
+    );
+    roleCache.set(userId, pending);
+    void pending.then((role) => {
+      if (role === null) roleCache.delete(userId);
+    });
+  }
+  return pending;
 }
 
 export function DashboardNav() {
@@ -39,11 +56,23 @@ export function DashboardNav() {
 
   useEffect(() => {
     let cancelled = false;
-    fetchRole().then((result) => {
-      if (!cancelled) setRole(result);
+    const load = () =>
+      fetchRole().then((result) => {
+        if (!cancelled) setRole(result);
+      });
+
+    // Fires once immediately (INITIAL_SESSION) and again on sign-in/out and
+    // token refresh. Deferred because supabase-js warns against awaiting
+    // its own calls inside this callback.
+    const {
+      data: { subscription },
+    } = createClient().auth.onAuthStateChange(() => {
+      setTimeout(load, 0);
     });
+
     return () => {
       cancelled = true;
+      subscription.unsubscribe();
     };
   }, []);
 
